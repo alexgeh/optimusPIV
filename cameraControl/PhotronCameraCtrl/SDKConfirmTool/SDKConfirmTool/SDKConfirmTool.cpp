@@ -7,23 +7,30 @@
 #define PDC_API __cdecl
 
 #include "stdafx.h"
-#include "./../../PDCLIB/Include/PDCLIB.h"
-//#include "PDCLIB.h"
-#include<Windows.h>
+//#include "./../../PDCLIB/Include/PDCLIB.h"
+#include "PDCLIB.h"
+#include <Windows.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string>
 #include <iostream>
+#include <fstream>
 #include <vector>
 
 #include <chrono>
 #include <iomanip>
 #include <sstream>
 #include <filesystem>
+
+#include <thread>
+#include <atomic>
 #include <conio.h> // For _kbhit() and _getch()
 
 #include <locale>
 #include <codecvt>
+
+#include <nlohmann/json.hpp>
+using json = nlohmann::json;
 
 namespace fs = std::filesystem;
 
@@ -36,19 +43,81 @@ namespace fs = std::filesystem;
 // Declaration
 static BOOL Initialize();
 bool ConnectToCamera(const std::string& ipAddress, bool autoDetect);
-void RecordVideo(unsigned long nDeviceNo, unsigned long nChildNo, unsigned long nRate, unsigned long nFrames);
+bool RecordVideo(unsigned long nDeviceNo, unsigned long nChildNo, unsigned long nRate, unsigned long nFrames, std::atomic<bool>& exit_requested);
 void SaveMRAW(unsigned long nDeviceNo, unsigned long nChildNo, const wchar_t* mrawPath, long nDownloadFrame);
 void SaveCIHX(unsigned long nDeviceNo, unsigned long nChildNo, const char* cihxPath, long nDownloadFrame);
 void DownloadHighSpeedVideo(unsigned long nDeviceNo, unsigned long nChildNo, const wchar_t* mrawPath, const char* cihxPath, long nTotalFrame);
 unsigned long ConvertIpStringToInt(const std::string& ip);
+
 static int SpliString(LPTSTR lpszString, LPCTSTR lpszDelimiter, LPTSTR lpszStringList[]);
 static BOOL IsNumber(LPCTSTR lpszString);
 static BOOL Finalize();
+
+int GetNextAvailableIndex(const std::string& directory, const std::string& prefix, const std::string& extension, int padding = 4);
+json LoadLog(const std::string& logPath);
+void SaveLog(const std::string& logPath, const json& j);
 
 // Global variable
 BOOL g_bOpen = FALSE;			// TRUE:Open FALSE:NotOpen
 unsigned long g_nDeviceNo = 0;	// Device No
 unsigned long g_nChildNo = 0;	// Child No
+
+// Structure to hold camera settings
+struct PIVSettings {
+	int acquisition_freq_Hz;
+	int delta_t_us;
+	int pulse_width_us;
+	int nDoubleFrames;
+	bool ext_trigger;
+};
+
+struct COMSettings {
+	std::string bnc_connection;
+	std::string laser_connection;
+	std::string camOne_connection;
+	std::string camTwo_connection;
+};
+
+struct Config {
+	std::string root_dir;
+	std::string raw_PIV_dir;
+	std::string proc_PIV_dir;
+	std::string log_path;
+	PIVSettings piv;
+	COMSettings com;
+};
+
+// Function to read config
+Config load_config(const std::string& filepath) {
+	std::ifstream file(filepath);
+	if (!file.is_open()) {
+		throw std::runtime_error("Failed to open config file: " + filepath);
+	}
+
+	nlohmann::json j;
+	file >> j;
+
+	Config cfg;
+	cfg.root_dir = j["root_dir"];
+	cfg.raw_PIV_dir = j["raw_PIV_dir"];
+	cfg.proc_PIV_dir = j["proc_PIV_dir"];
+	cfg.log_path = j["log_path"];
+
+	const auto& p = j["PIV_settings"];
+	cfg.piv.acquisition_freq_Hz = p["acquisition_freq_Hz"];
+	cfg.piv.delta_t_us = p["delta_t_us"];
+	cfg.piv.pulse_width_us = p["pulse_width_us"];
+	cfg.piv.nDoubleFrames = p.value("nDoubleFrames", 0); // Provide a default value of 0 if the field is missing
+	cfg.piv.ext_trigger = p["ext_trigger"];
+
+	const auto& c = j["COM_settings"];
+	cfg.com.bnc_connection = c["bnc_connection"];
+	cfg.com.laser_connection = c["laser_connection"];
+	cfg.com.camOne_connection = c["camOne_connection"];
+	cfg.com.camTwo_connection = c["camTwo_connection"];
+
+	return cfg;
+}
 
 // Function to generate timestamp string
 std::string GetTimestamp() {
@@ -73,14 +142,26 @@ int _tmain(int argc, _TCHAR* argv[])
 
 	_tsetlocale(LC_ALL, _T(".ACP"));
 
-	std::string cameraIP = "192.168.1.10";  // Replace with the actual camera IP if known
+	// Load configuration from parameter file
+	std::string configPath = "R:\\ENG_Breuer_Shared\\agehrke\\DATA\\2025_optimusPIV\\20250613_test\\experiment_config.json";
+	Config cfg;
 
-	unsigned long nRate = 200; // Record rate in fps
-	unsigned long nFrames = 400; // Number of frames to record
+	try {
+		cfg = load_config(configPath);
+	}
+	catch (const std::exception& e) {
+		std::cerr << "Config error: " << e.what() << "\n";
+		return -1;
+	}
 
-	const wchar_t* mrawPath = L"C:\\Users\\agehrke\\Downloads\\photronTestRec\\cpp_test_script\\test_1.mraw";
-	const char* cihxPath = "C:\\Users\\agehrke\\Downloads\\photronTestRec\\cpp_test_script\\test_1.cihx";
-	long totalFrames = nFrames; // Change as needed
+	// Access parameters like this:
+	std::cout << "Camera 1 IP: " << cfg.com.camOne_connection << "\n";
+	std::cout << "Acquisition Frequency: " << cfg.piv.acquisition_freq_Hz << " Hz\n";
+
+	std::string cameraIP = cfg.com.camOne_connection;  // Replace with the actual camera IP if known (e.g. "192.168.1.10")
+
+	unsigned long nRate = 2*cfg.piv.acquisition_freq_Hz; // Record rate in fps/Hz - x2 because of double frames (e.g. 200 if double frames recorded at 100 Hz)
+	unsigned long nFrames = 2*cfg.piv.nDoubleFrames; // Number of frames to record - x2 because of double frames (e.g. 400 if 200 double frames recorded)
 
 	Initialize();
 
@@ -92,43 +173,101 @@ int _tmain(int argc, _TCHAR* argv[])
 	}
 	std::cout << "Connection successful!\n";
 
-	// Create a unique directory for this session
-	std::string rootDir = "C:\\Users\\agehrke\\Downloads\\photronTestRec\\cpp_test_script\\";
-	std::string sessionFolder = rootDir + "recording_" + GetTimestamp();
-	fs::create_directory(sessionFolder);
+	// Use cfg.raw_PIV_dir for where to save the videos
+	std::string videoDir = cfg.raw_PIV_dir;
+	fs::create_directories(videoDir); // Ensure directory exists
 
-	int videoIndex = 1;
+	std::string logPath = cfg.log_path;
+	json log = LoadLog(logPath);
+	log["status"] = "ready";
+	SaveLog(logPath, log);
+
+	std::atomic<bool> exit_requested{ false };
+
+	// Thread that listens for keypresses - this allows the user to exit the recording loop gracefully
+	std::thread exit_thread([&exit_requested]() {
+		while (true) {
+			if (_kbhit() && _getch() == 'q') {
+				exit_requested = true;
+				break;
+			}
+			std::this_thread::sleep_for(std::chrono::milliseconds(100));
+		}
+		});
 
 	std::cout << "Press 'q' to stop recording...\n";
 
 	while (true) {
-		
-		// Check for exit key
-		if (_kbhit() && _getch() == 'q') {
-			std::cout << "Exiting recording loop.\n";
+		if (exit_requested) {
+			std::cout << "Exit requested. Finishing current cycle...\n";
+		}
+
+		// Get next available index
+		int index = GetNextAvailableIndex(videoDir, "ms", ".mraw");
+
+		// Break early if requested and we haven't started recording yet
+		if (exit_requested) {
+			std::cout << "No new recording will be started.\n";
 			break;
 		}
 
-		// Generate filenames
-		std::string timestamp = GetTimestamp();
-		std::stringstream mrawName, cihxName;
-		mrawName << sessionFolder << "\\video_" << videoIndex << "_" << timestamp << ".mraw";
-		cihxName << sessionFolder << "\\video_" << videoIndex << "_" << timestamp << ".cihx";
+		// Build file names
+		// (same code as before)
+		std::stringstream baseName;
+		baseName << "ms" << std::setw(4) << std::setfill('0') << index;
+		std::string caseName = baseName.str();
+		fs::path mrawFullPath = fs::path(videoDir) / (baseName.str() + ".mraw");
+		fs::path cihxFullPath = fs::path(videoDir) / (baseName.str() + ".cihx");
+		std::wstring mrawPath = StringToWString(mrawFullPath.string());
+		std::string cihxPath = cihxFullPath.string();
 
-		std::wstring mrawPath = StringToWString(mrawName.str());
-		//std::wstring mrawPath = std::wstring(mrawName.str().begin(), mrawName.str().end());
-		std::string cihxPath = cihxName.str();
-		
-		// Record and Save
-		std::cout << "Recording video " << videoIndex << "...\n";
-		RecordVideo(g_nDeviceNo, g_nChildNo, nRate, nFrames);
+		// Log: recording
+		log = LoadLog(logPath);
+		log["status"] = "recording";
+		SaveLog(logPath, log);
+
+		std::cout << "Recording: " << baseName.str() << "\n";
+
+		// Start recording
+		bool recorded = RecordVideo(g_nDeviceNo, g_nChildNo, nRate, nFrames, exit_requested);
+
+		// If recording was skipped (e.g. due to 'q'), don't download or log
+		if (!recorded) {
+			std::cout << "No recording happened. Skipping download and logging.\n";
+			break;  // or continue; if you want to check again
+		}
+
+		// (continue as before if recording occurred)
+
+		log = LoadLog(logPath);
+		log["status"] = "downloading";
+		SaveLog(logPath, log);
+
 		DownloadHighSpeedVideo(g_nDeviceNo, g_nChildNo, mrawPath.c_str(), cihxPath.c_str(), nFrames);
-		std::cout << "Video " << videoIndex << " saved successfully.\n";
 
-		videoIndex++;
+		log = LoadLog(logPath);
+		log["cases"][caseName] = {
+			{"timestamp", GetTimestamp()},
+			{"status", "saved"}
+		};
+		log["n_recorded"] = static_cast<int>(log["cases"].size());
+		log["status"] = "ready";
+		SaveLog(logPath, log);
+
+		std::cout << "Saved: " << baseName.str() << ".mraw / .cihx\n";
+
+		// If 'q' was pressed during download, break now
+		if (exit_requested) {
+			std::cout << "Exit requested. Exiting after current recording.\n";
+			break;
+		}
 	}
 
 	Finalize();
+
+	if (exit_thread.joinable()) {
+		exit_thread.join();
+	}
 
 	_tprintf(_T("Please Input Key..."));
 	_fgettc(stdin);
@@ -156,71 +295,81 @@ static BOOL Initialize()
 	}
 }
 
-void RecordVideo(unsigned long nDeviceNo, unsigned long nChildNo, unsigned long nRate, unsigned long nFrames)
+bool RecordVideo(unsigned long nDeviceNo, unsigned long nChildNo,
+	unsigned long nRate, unsigned long nFrames,
+	std::atomic<bool>& exit_requested)
 {
 	unsigned long nRet;
 	unsigned long nStatus;
 	unsigned long nErrorCode;
 
-	// Recording time in milliseconds - record extra frames as buffer, but only download requested number of frames
 	unsigned long recordingTime = 1.1 * nFrames / nRate * 1000;
 
 	nRet = PDC_SetTriggerMode(nDeviceNo, PDC_TRIGGER_RANDOM_RESET, nRate, nRate, nRate, &nErrorCode);
 	if (nRet == PDC_FAILED) {
 		printf("PDC_SetTriggerMode Error %d\n", nErrorCode);
-		return;
+		return false;
 	}
 
 	nRet = PDC_SetRecordRate(nDeviceNo, nChildNo, nRate, &nErrorCode);
 	if (nRet == PDC_FAILED) {
 		printf("PDC_SetRecordRate Error %d\n", nErrorCode);
-		return;
+		return false;
 	}
 
 	nRet = PDC_SetRecReady(nDeviceNo, &nErrorCode);
 	if (nRet == PDC_FAILED) {
-		printf("PDC_SetRecready Error %d\n", nErrorCode);
-		return;
+		printf("PDC_SetRecReady Error %d\n", nErrorCode);
+		return false;
 	}
 
-	while (1) {
+	while (true) {
 		nRet = PDC_GetStatus(nDeviceNo, &nStatus, &nErrorCode);
 		if (nRet == PDC_FAILED) {
 			printf("PDC_GetStatus Error %d\n", nErrorCode);
-			break;
+			return false;
 		}
-
+		if (exit_requested) {
+			std::cout << "Exit requested before trigger.\n";
+			PDC_SetStatus(nDeviceNo, PDC_STATUS_LIVE, &nErrorCode);
+			PDC_SetStatus(nDeviceNo, PDC_STATUS_PLAYBACK, &nErrorCode);
+			return false;
+		}
 		if (nStatus == PDC_STATUS_RECREADY || nStatus == PDC_STATUS_REC) {
-			printf("Camera in recording mode - Ready to trigger.\n");
+			std::cout << "Camera in recording mode - Ready to trigger.\n";
 			break;
 		}
+		Sleep(100);
 	}
 
-	while (1) {
+	while (true) {
 		nRet = PDC_GetStatus(nDeviceNo, &nStatus, &nErrorCode);
 		if (nRet == PDC_FAILED) {
 			printf("PDC_GetStatus Error %d\n", nErrorCode);
-			break;
+			return false;
 		}
-
+		if (exit_requested) {
+			std::cout << "Exit requested before recording triggered.\n";
+			PDC_SetStatus(nDeviceNo, PDC_STATUS_LIVE, &nErrorCode);
+			PDC_SetStatus(nDeviceNo, PDC_STATUS_PLAYBACK, &nErrorCode);
+			return false;
+		}
 		if (nStatus != PDC_STATUS_RECREADY) {
-			printf("Camera recording.\n");
+			std::cout << "Camera recording.\n";
 			break;
 		}
+		Sleep(100);
 	}
+
 	Sleep(recordingTime);
 
-	// This turns off recording
-	nRet = PDC_SetStatus(nDeviceNo, PDC_STATUS_LIVE, &nErrorCode);
-	if (nRet == PDC_FAILED) {
-		printf("PDC_SetStatus Error %d\n", nErrorCode);
-	}
+	// Cleanly stop recording
+	PDC_SetStatus(nDeviceNo, PDC_STATUS_LIVE, &nErrorCode);
+	PDC_SetStatus(nDeviceNo, PDC_STATUS_PLAYBACK, &nErrorCode);
 
-	nRet = PDC_SetStatus(nDeviceNo, PDC_STATUS_PLAYBACK, &nErrorCode);
-	if (nRet == PDC_FAILED) {
-		printf("PDC_SetStatus Error %d\n", nErrorCode);
-	}
+	return true; // Recording was completed
 }
+
 
 void DownloadHighSpeedVideo(unsigned long nDeviceNo, unsigned long nChildNo, const wchar_t* mrawPath, const char* cihxPath, long nTotalFrame = -1)
 {
@@ -539,3 +688,30 @@ unsigned long ConvertIpStringToInt(const std::string& ip) {
 	return result;
 }
 
+// Function to get the next available index for a file in a directory
+int GetNextAvailableIndex(const std::string& directory, const std::string& prefix, const std::string& extension, int padding) {
+	int index = 1;
+	while (true) {
+		std::stringstream filename;
+		filename << prefix << std::setw(padding) << std::setfill('0') << index << extension;
+		fs::path fullPath = fs::path(directory) / filename.str();
+		if (!fs::exists(fullPath)) {
+			break;
+		}
+		index++;
+	}
+	return index;
+}
+
+json LoadLog(const std::string& logPath) {
+	std::ifstream file(logPath);
+	if (!file.is_open()) return json{ {"status", "ready"}, {"n_recorded", 0}, {"cases", json::object()} };
+	json j;
+	file >> j;
+	return j;
+}
+
+void SaveLog(const std::string& logPath, const json& j) {
+	std::ofstream file(logPath);
+	file << std::setw(4) << j << std::endl;
+}
