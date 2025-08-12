@@ -1,0 +1,7 @@
+'Initialize Sine Amp Motor
+#sAmInit
+BA B
+BMB= 2000
+BXB= -3
+#bxa;JP #bxa,_BXB<>3
+ENDIF

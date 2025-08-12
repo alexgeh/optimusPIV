@@ -56,6 +56,7 @@ static BOOL Finalize();
 int GetNextAvailableIndex(const std::string& directory, const std::string& prefix, const std::string& extension, int padding = 4);
 json LoadLog(const std::string& logPath);
 void SaveLog(const std::string& logPath, const json& j);
+void UpdateLogStatus(const std::string& logPath, const std::string& caseName, const std::string& newStatus);
 
 // Global variable
 BOOL g_bOpen = FALSE;			// TRUE:Open FALSE:NotOpen
@@ -137,15 +138,22 @@ std::wstring StringToWString(const std::string& str) {
 // Entry point
 int _tmain(int argc, _TCHAR* argv[])
 {
-	UNREFERENCED_PARAMETER(argc);
-	UNREFERENCED_PARAMETER(argv);
-
 	_tsetlocale(LC_ALL, _T(".ACP"));
 
-	// Load configuration from parameter file
-	std::string configPath = "R:\\ENG_Breuer_Shared\\agehrke\\DATA\\2025_optimusPIV\\20250613_test\\experiment_config.json";
-	Config cfg;
+	if (argc < 2) {
+		std::cerr << "Usage: CameraControl.exe <path_to_config.json>\n";
+		return -1;
+	}
 
+	// Convert _TCHAR* to std::string if needed (Unicode vs ANSI)
+	#ifdef _UNICODE
+		std::wstring widePath = argv[1];
+		std::string configPath(widePath.begin(), widePath.end());
+	#else
+		std::string configPath = argv[1];
+	#endif
+
+	Config cfg;
 	try {
 		cfg = load_config(configPath);
 	}
@@ -714,4 +722,13 @@ json LoadLog(const std::string& logPath) {
 void SaveLog(const std::string& logPath, const json& j) {
 	std::ofstream file(logPath);
 	file << std::setw(4) << j << std::endl;
+}
+
+void UpdateLogStatus(const std::string& logPath, const std::string& caseName, const std::string& newStatus) {
+	auto log = LoadLog(logPath);
+	if (log.contains("cases") && log["cases"].contains(caseName)) {
+		log["cases"][caseName]["status"] = newStatus;
+	}
+	log["status"] = newStatus;  // optional: global status
+	SaveLog(logPath, log);
 }

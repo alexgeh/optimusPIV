@@ -1,50 +1,36 @@
-
-%% Test Galil motion script
-%  Author: Alexander Gehrke - 20250312
-%#ok<*AGROW>
-
-close all
-clear
-run('InitMotors_pitchingWing.m') % Initialize motors
-
-
-%% Run Options
-f = 1; % Flapping frequency [Hz]
+function [results, motorStruct] = pitchingWingMotion(galilObj, motorStruct, freq, pitchA, np, dt, RCN, plotting)
+%% PITCHINGWINGMOTION Run a set of parameters on the pitching wing
 
 flapSwitch = 1;
-pitchA = 20;
-
-np = 10; % Amount of base cycles
 strokeOffset = 0; % Stroke motion zero position offset [deg] (22.5 for deformation measurements)
 
 reset = false; % Reset position on limit switches
 loadcell = false; % [true, false] Do you want to take loadcell data?
-plotting = true; % [true, false] Do you want plots or not?
 
 zerotime = 1; % Time for zero force measurements [s]
 waittime = 1; % Pause time between operations (e.g. homing, zero-meas, etc)
 
 % Create measurement parameter vector
 para.np = np;
-Tex = 1 ./ f;
+Tex = 1 ./ freq;
 T = round(Tex/2,2)*2; % Round times to discretization precision
 phase_shift = 0;
 para.T = T;
 % para.betaA = pitch_ampl;
 para.beta0 = phase_shift;
-f = 1/T;
-para.f = f;
+freq = 1/T;
+para.f = freq;
 % fprintf('T = %i, pitch amp = %i, phase shift = %.1f\n', T, pitch_ampl, phase_shift)
 texp = 0:dt:np*T; % Experiment time vector
 
 
 %% Define motors and motions:
 % Physical motion of pitching wing motor A
-fp_A = f; % Stroke frequency [Hz]
+fp_A = freq; % Stroke frequency [Hz]
 f_B = @(t) (pitchA*cos(2*pi*fp_A*t + strokeOffset)); % sinusoidal function
 
-m(1).t = texp; % Physical time vector
-m(1).x = f_B(m(1).t); % motion vector
+motorStruct(1).t = texp; % Physical time vector
+motorStruct(1).x = f_B(motorStruct(1).t); % motion vector
 
 % for mi = 1:length(m)
 %     m(mi).x = addRamp(m(mi).x, m(mi).t, T, para.np);
@@ -56,7 +42,7 @@ m(1).x = f_B(m(1).t); % motion vector
 
 %% Preview desired motor trajectory
 if plotting
-    figure; plot(m(1).t, m(1).x)
+    figure; plot(motorStruct(1).t, motorStruct(1).x - motorStruct(1).x(1)/2)
 
     % figure('Position',[207 100.5000 933.5000 488]);
     %
@@ -77,9 +63,9 @@ end
 %% Galil Setup
 % g.command('DPB=0;');
 % g.command('DPB=0; DPE=0; DPF=0;'); % Set current position as zero
-g.command(['SH' AllMotNam(m)]); % Turn on motors
+galilObj.command(['SH' AllMotNam(motorStruct)]); % Turn on motors
 pause(1e-3)
-[m.RCN] = deal(RCN); % Set encoder recording frequency for all motors
+[motorStruct.RCN] = deal(RCN); % Set encoder recording frequency for all motors
 
 % NI setup
 if loadcell
@@ -91,8 +77,8 @@ end
 
 %% Homing procedure
 disp("Move to start position")
-pos = [m(1).x(1)];
-simpleHome(g, m, 'pos', pos, 'JGspeed', 10); % Go to specified position with a slow jog
+pos = [motorStruct(1).x(1)];
+simpleHome(galilObj, motorStruct, 'pos', pos, 'JGspeed', 10); % Go to specified position with a slow jog
 pause(1e-3)
 
 
@@ -104,25 +90,28 @@ pause(1e-3)
 disp("Starting motion")
 pause(2)
 if loadcell
-    exp = Galil_motion(g, m, NI); % Run with loadcell recording
+    results = Galil_motion(galilObj, motorStruct, NI); % Run with loadcell recording
 else
-    exp = Galil_motion(g, m); % Run without loadcell recording
+    results = Galil_motion(galilObj, motorStruct); % Run without loadcell recording
 end
 % Stop motors and turn them off:
-g.command('ST');
+galilObj.command('ST');
 pause(1)
-setMotorPID(g, m(1), false); % FLAP
+setMotorPID(galilObj, motorStruct(1), false); % FLAP
 % g.command('MO');
 
 
 %% PLOT
 if plotting
-    figure, hold on,
-    plot(m(1).t, m(1).x - m(1).x(1))
+    % figure,
+    hold on,
+    % plot(motorStruct(1).t, motorStruct(1).x - motorStruct(1).x(1))
 
-    plot(exp(1).t, (exp(1).x - exp(1).x(1)))
+    plot(results(1).t, results(1).x - results(1).x(1)/2)
     legend('ideal','rec')
 
     xlim([texp(1), texp(end)])
+end
+
 end
 
