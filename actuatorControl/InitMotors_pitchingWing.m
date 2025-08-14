@@ -24,9 +24,9 @@ m(1).KIlow = 0.01;
 % m(1).KDhigh = 2478; % PID motor control during motion
 % m(1).KPhigh = 335;
 % m(1).KIhigh = 13;
-m(1).KDhigh = 75; % PID motor control during motion
+m(1).KDhigh = 150; % PID motor control during motion
 m(1).KPhigh = 90;
-m(1).KIhigh = 0.02;
+m(1).KIhigh = 0.05;
 % m(1).KDhigh = 4000; % PID motor control during motion
 % m(1).KPhigh = 700;
 % m(1).KIhigh = 20;
@@ -37,7 +37,7 @@ RCN = 4; % Encoder sampling parameter
 Nm = length(m);
 
 % dt = 0.005; % [s] Discritization time step. Ideally has to be higher than galil time step (same for both motors)
-dt = 0.05; % [s] Discritization time step. Ideally has to be higher than galil time step (same for both motors)
+dt = 0.025; % [s] Discritization time step. Ideally has to be higher than galil time step (same for both motors)
 
 
 %% Galil Setup:

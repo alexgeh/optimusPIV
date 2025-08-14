@@ -42,7 +42,7 @@ motorStruct(1).x = f_B(motorStruct(1).t); % motion vector
 
 %% Preview desired motor trajectory
 if plotting
-    figure; plot(motorStruct(1).t, motorStruct(1).x - motorStruct(1).x(1)/2)
+    figure; plot(motorStruct(1).t, motorStruct(1).x - motorStruct(1).x(end)/2)
 
     % figure('Position',[207 100.5000 933.5000 488]);
     %
@@ -87,6 +87,8 @@ pause(1e-3)
 % pause(0.2)
 % g.command('XQ#TRIGGER');
 
+setMotorPID(galilObj, motorStruct(1), true); % FLAP
+
 disp("Starting motion")
 pause(2)
 if loadcell
@@ -107,7 +109,7 @@ if plotting
     hold on,
     % plot(motorStruct(1).t, motorStruct(1).x - motorStruct(1).x(1))
 
-    plot(results(1).t, results(1).x - results(1).x(1)/2)
+    plot(results(1).t, results(1).x - results(1).x(end)/2)
     legend('ideal','rec')
 
     xlim([texp(1), texp(end)])
