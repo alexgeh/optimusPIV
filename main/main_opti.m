@@ -21,10 +21,12 @@ rho_air = 1.225; % Density air [kg/m^3]
 c = 0.105; % Chord [m]
 R = 0.6; % Span [m]
 
+dt_corr = 51.5 / 132; % Account for different dt (from 51.5us to 132us)
+
 
 %% Configure experiment and write config file
 % root_dir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\20250725_test\";
-root_dir = "C:\PIV_SANDBOX\20250812_test_run\";
+root_dir = "C:\PIV_SANDBOX\20250815_bayes_opt\";
 davis_exe = "C:\DaVis\win64\DaVis.exe";
 % camera_exe = "R:\ENG_Breuer_Shared\agehrke\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe";
 camera_exe = "C:\Users\agehrke\Downloads\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe";
@@ -38,7 +40,8 @@ eset = struct( ...
     'delta_t_us', 132, ...
     'pulse_width_us', 5, ...
     'nDoubleFrames', 100, ...
-    'ext_trigger', ext_trigger ...
+    'ext_trigger', ext_trigger, ...
+    'dt_corr', dt_corr ...
 );
 % Communication parameters
 cset = struct( ...
@@ -80,11 +83,13 @@ bnc_program(bnc, eset.acquisition_freq_Hz, eset.delta_t_us, eset.pulse_width_us,
 %% Initialize Galil board and motors
 InitMotors_pitchingWing();
 % Define kinematic parameters:
-freqVec = [1,4,8];
-nRec = length(freqVec);
-pitchA = 20;
+% freqVec = [1,4,8];
+% freq = 5;
+% nRec = length(freqVec);
+% pitchA = 20;
 np = 20;
 plotting = true;
+skipCycles = 10; % Skip n cycles before triggering PIV
 
 % Wait until systems ready
 pause(1)
@@ -103,6 +108,9 @@ optPIV_settings.Uinf = Uinf;
 optPIV_settings.rho_air = rho_air;
 optPIV_settings.c = c;
 optPIV_settings.R = R;
+% optPIV_settings.freq = freq;
+optPIV_settings.dt_corr = dt_corr;
+optPIV_settings.skipCycles = skipCycles;
 
 return
 
@@ -118,7 +126,7 @@ return
 
 
 %% Fine tuning
-simpleHome(g, m, 'pos', -2, 'JGspeed', 10);
+simpleHome(g, m, 'pos', 0, 'JGspeed', 10); % + up / - down
 pause(1)
 g.command('DPB=0');
 setMotorPID(g, m, false)
@@ -130,10 +138,16 @@ return
 
 results = bayesopt(@(x) -optPiv_objFcn(x.frequency, x.amplitude), ...
     [optimizableVariable('frequency', [1, 8]), ...
-     optimizableVariable('amplitude', [5, 25])], ...
+     optimizableVariable('amplitude', [5, 60])], ...
     'MaxObjectiveEvaluations', 40, ...
     'IsObjectiveDeterministic', false, ...
     'AcquisitionFunctionName', 'expected-improvement-plus');
+
+% results = bayesopt(@(x) -optAmplitude_objFcn(x.amplitude), ...
+%     [optimizableVariable('amplitude', [5, 70])], ...
+%     'MaxObjectiveEvaluations', 30, ...
+%     'IsObjectiveDeterministic', false, ...
+%     'AcquisitionFunctionName', 'expected-improvement-plus');
 
 best_frequency = results.XAtMinObjective.frequency;
 best_amplitude = results.XAtMinObjective.amplitude;
@@ -142,6 +156,8 @@ max_thrust = -results.MinObjective;
 fprintf('Best frequency: %.4f\n', best_frequency);
 fprintf('Best amplitude: %.4f\n', best_amplitude);
 fprintf('Maximum thrust coefficient: %.6f\n', max_thrust);
+
+save(fullfile(root_dir, "workspaceOptimization.mat"))
 
 return
 
@@ -200,5 +216,7 @@ bnc_disarm(bnc)
 %% Display results:
 F_T
 C_T
+
+save(fullfile(root_dir, "workspaceOptimization.mat"))
 
 disp("!!! SHUT DOWN LASER AND CAMERAS !!!")

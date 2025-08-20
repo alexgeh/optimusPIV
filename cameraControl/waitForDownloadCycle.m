@@ -28,6 +28,6 @@ function waitForDownloadCycle(logPath, timeoutSec)
         pause(0.5);
     end
 
-    error("Timeout waiting for download cycle to complete.");
+    warning("Timeout waiting for download cycle to complete.");
 end
 

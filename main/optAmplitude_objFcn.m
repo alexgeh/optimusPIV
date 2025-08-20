@@ -1,4 +1,4 @@
-function C_T = optPiv_objFcn(freq, pitchA)
+function C_T = optAmplitude_objFcn(pitchA)
 %OPTPIV_OBJFCN Summary of this function goes here
 %   Detailed explanation goes here
 
@@ -19,10 +19,9 @@ Uinf = optPIV_settings.Uinf;
 rho_air = optPIV_settings.rho_air;
 c = optPIV_settings.c;
 R = optPIV_settings.R;
-% freq = optPIV_settings.freq;
+freq = optPIV_settings.freq;
 dt_corr = optPIV_settings.dt_corr;
 skipCycles = optPIV_settings.skipCycles;
-
 
 
 %% Arm the system
@@ -34,7 +33,7 @@ pause(0.5)
 % if ~ext_trigger
 %     bnc_software_trigger(bnc);
 % end
-triggerDelay = 10 / freq; % Skip first n cycles
+triggerDelay = skipCycles / freq; % Skip first n cycles
 [motorRec, motorStruct] = pitchingWingMotion(g, m, freq, pitchA, np, dt, RCN, plotting);
 
 
@@ -53,23 +52,17 @@ transfer_files(config.davis_templ_dir, config.proc_PIV_dir, recIdx, "vc7");
 
 %% Analyze PIV
 VC7Folder = fullfile(config.proc_PIV_dir, sprintf('ms%04d', recIdx));
+% F_T = momentumDeficit(VC7Folder, Uinf, rho_air, dt_corr);
 F_T  = timeAveragedMomentumDeficit(VC7Folder, Uinf, R, rho_air, dt_corr);
 VTipMean = meanTipSpeed(c, deg2rad(pitchA), freq);
-
 % C_T = F_T ./ (0.5 * rho_air * c * R * VTipMean.^2);
-% C_T = F_T ./ (0.5 * rho_air * c * R * Uinf.^2)
+C_T = F_T ./ (0.5 * rho_air * c * R * Uinf.^2);
 
-C_T = F_T ./ (0.5 * rho_air * c * R * (freq*c).^2);
-C_T_Uinf = F_T ./ (0.5 * rho_air * c * R * Uinf.^2);
-
-disp("Current F_T = " + num2str(F_T) + ", Current C_T = " + ...
-    num2str(C_T) + ", Current C_T_Uinf = " + num2str(C_T_Uinf) + ...
-    ", Current ampl = " + num2str(pitchA) + ", Current freq = " + num2str(freq))
+disp("Current F_T = " + num2str(F_T) + ", Current C_T = " + num2str(C_T) + ", Current ampl = " + num2str(pitchA))
 
 optResults(recIdx).motorStruct = motorStruct;
 optResults(recIdx).motorRec = motorRec;
 optResults(recIdx).C_T = C_T;
-optResults(recIdx).C_T_Uinf = C_T_Uinf;
 optResults(recIdx).F_T = F_T;
 optResults(recIdx).VTipMean = VTipMean;
 optResults(recIdx).freq = freq; 

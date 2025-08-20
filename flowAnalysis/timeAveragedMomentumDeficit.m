@@ -1,4 +1,4 @@
-function F_T  = momentumDeficit(PIVfolder, Uinf, rho, dt_corr)
+function F_T  = timeAveragedMomentumDeficit(PIVfolder, Uinf, R, rho, dt_corr)
 %% Automated flow field analysis
 [u, v, cr, x, y] = readVC7Folder(PIVfolder);
 x = x(:,:,1);
@@ -43,14 +43,27 @@ v_crop = v(cropYIdx,cropXIdx,:);
 
 u_mean = mean(u_crop,"all");
 
-% Momentum deficit thrust calculation
-u_deficit = u .* (u - Uinf);
 
+%% Momentum deficit thrust calculation
 dx = abs(x(1,2) - x(1,1));   % assume uniform spacing
 dy = abs(y(2,1) - y(1,1));
 dA = dx * dy;
 
-F_T = rho * sum(u_deficit(:)) * dA;   % Net thrust in N
+% Time-average the velocity field
+u_avg = mean(u, 3); % [nx, ny]
+% Compute the squared average velocity
+u2_avg = mean(u.^2, 3); % [nx, ny]
+
+% Compute the integrand over the field
+integrand = Uinf * u_avg - u2_avg; % [nx, ny]
+
+% Integrate over area
+T_per_span = rho * sum(integrand(:)) * dA;
+
+% Multiply by span to get total thrust
+F_T = T_per_span * R;
+
+fprintf('Time-averaged thrust (method 3): %.4f N\n', F_T);
 
 
 %% Quick plot thingy
