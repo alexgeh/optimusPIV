@@ -4,15 +4,16 @@
 
 clear
 
-% rootDir = "\\Files22.brown.edu\LRSResearch\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\20250814_bayes_opt_2\";
-rootDir = "C:\Users\alexg\OneDrive\Documents\MATLAB\localOptPIV\";
-workspaceFile = fullfile(rootDir, "workspaceOptimization_twoParam.mat");
+rootDir = "\\Files22.brown.edu\LRSResearch\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\20250814_bayes_opt_2\";
+% rootDir = "C:\Users\alexg\OneDrive\Documents\MATLAB\localOptPIV\";
+% workspaceFile = fullfile(rootDir, "workspaceOptimization_twoParam.mat");
+workspaceFile = fullfile(rootDir, "workspaceOptimization.mat");
 pivDataDir = fullfile(rootDir, "proc_PIV");
 plotDir = fullfile(rootDir, "plots");
 
 load(workspaceFile)
 
-savePlots = false;
+savePlots = true;
 
 
 %% Turbine and case parameters
@@ -29,20 +30,21 @@ figure;
 for mpti = 1:length(C_T)
     clf(); hold on;
 
-    % plotBayOpt2D(pitchA(1:mpti), -C_T(1:mpti)) % For 2d
-    plotBayOpt3D([freq(1:mpti), pitchA(1:mpti)], -C_T(1:mpti))
+    plotBayOpt2D(pitchA(1:mpti), -C_T(1:mpti)) % For 2d
+%     plotBayOpt3D([freq(1:mpti), pitchA(1:mpti)], -C_T(1:mpti))
 
     % xlim([0, 70]); ylim([-0.0500, 0.3000]); % For 2d
-    xlim([0, 8]); ylim([0, 60]); zlim([-40, 40]); % For 3d
-    xlabel("frequency f [Hz]"); ylabel("amplitude \theta_A [deg]");
-    zlabel("-C_T")
+%     xlim([0, 8]); ylim([0, 60]); zlim([-40, 40]); % For 3d
+%     xlabelg("frequency f [Hz]"); ylabelg("amplitude \theta_A [deg]"); zlabelg("-C_T");
+    xlabelg("amplitude $$\theta_A$$ [deg]"); ylabelg("$$-C_T$$");
 
-    view([46 -36])
+%     view([46 -36])
     
     if savePlots
         fname = sprintf("surrogateModel_%.5d.png", mpti);
+        box on;
         set(gcf, 'Color', 'w');
-        export_fig(fullfile(plotDir, "surrogateModel_twoParam", fname), '-png', '-r600');
+        export_fig(fullfile(plotDir, "surrogateModel", fname), '-png', '-r600');
     else
         pause(0.1)
     end
