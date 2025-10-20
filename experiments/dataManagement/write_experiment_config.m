@@ -15,10 +15,10 @@ function write_experiment_config(root_dir, PIV_settings, COM_settings, davis_exe
     raw_PIV_dir = fullfile(root_dir, 'raw_PIV');
     proc_PIV_dir = fullfile(root_dir, 'proc_PIV');
     analysis_PIV_dir = fullfile(root_dir, 'analysis_PIV');
-    davis_proj_dir = fullfile(root_dir, 'davis_project', 'optimusPIV');
+    davis_proj_dir = fullfile(root_dir, 'davis_project', 'optimusPivDfd');
     davis_templ_dir = fullfile(davis_proj_dir, 'template');
-    davis_templ_mraw = fullfile(davis_templ_dir, 'Camera2.mraw');
-    davis_lvs_file = fullfile(davis_proj_dir, 'funkyStereo.OperationList.lvs');
+    davis_templ_mraw = fullfile(davis_templ_dir, 'Camera1.mraw');
+    davis_lvs_file = fullfile(davis_proj_dir, 'twoDimGPU.OperationList.lvs');
     davis_set_file = fullfile(davis_proj_dir, 'template.set');
     log_path = fullfile(raw_PIV_dir, "recording_log.json");
     proc_log = fullfile(proc_PIV_dir, "processing_log.json");

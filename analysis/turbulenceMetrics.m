@@ -80,7 +80,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
 
     %% Plotting
     if doPlot
-        figure()
+        figure(201)
         limits = [TI_mean-TI_std TI_mean+TI_std];
 %         limits = [0 0.03];
         nLevel = 25;
@@ -91,7 +91,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         clim(limits)
         title('Turbulence intensity field')
 
-        figure()
+        figure(202)
         limits = [0.5*TIgrad_mean 1.5*TIgrad_mean];
 %         limits = [0 0.2];
         nLevel = 25;
@@ -102,7 +102,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         clim(limits)
         title('Turbulence intensity gradient field')
 
-        figure()
+        figure(203)
         limits = [0.5*velgrad_mean 1.5*velgrad_mean];
         nLevel = 25;
         toplot = velgrad_field;
@@ -112,7 +112,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         clim(limits)
         title('Velocity gradient field')
 
-        figure()
+        figure(204)
         limits = [0.5*aniso_mean 1.5*aniso_mean];
         nLevel = 25;
         toplot = aniso_field;
@@ -121,5 +121,25 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         colorbar()
         clim(limits)
         title('Anisotropy field')
+
+        figure(205)
+        toplot = u(:,:,10);
+        limits = [mean(toplot,'all')-mean(std(toplot),'all') mean(toplot,'all')+mean(std(toplot),'all')];
+        nLevel = 25;
+        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        set(h,'linestyle','none')
+        colorbar()
+        clim(limits)
+        title('stream-wise velocity 1')
+
+        figure(206)
+        toplot = u(:,:,11);
+        limits = [mean(toplot,'all')-mean(std(toplot),'all') mean(toplot,'all')+mean(std(toplot),'all')];
+        nLevel = 25;
+        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        set(h,'linestyle','none')
+        colorbar()
+        clim(limits)
+        title('stream-wise velocity 2')
     end
 end

@@ -1,4 +1,4 @@
-function C_T = optPiv_objFcn(freq, pitchA)
+function C_T = pitchWingOpt_objFcn(freq, pitchA)
 %OPTPIV_OBJFCN Summary of this function goes here
 %   Detailed explanation goes here
 

@@ -164,6 +164,55 @@ classdef ATGController < handle
             obj.send(cmd);
         end
 
+        function bfsync(obj, nodes, amp, freq, dur, offset, group)
+            % BFSYNC  Synchronized back/forth motion with optional offset and trigger group
+            % Usage:
+            %   bfsync(obj, nodes, amp, freq)
+            %   bfsync(obj, nodes, amp, freq, dur)
+            %   bfsync(obj, nodes, amp, freq, dur, offset)
+            %   bfsync(obj, nodes, amp, freq, dur, offset, group)
+            %
+            % Parameters:
+            %   nodes  : vector or string list of node indices
+            %   amp    : amplitude in degrees
+            %   freq   : frequency in Hz
+            %   dur    : total duration in seconds (optional)
+            %   offset : starting offset in degrees (optional, default = 0)
+            %   group  : trigger group number (optional, default = 1)
+            %
+            % Example:
+            %   obj.bfsync([0 1], 20, 1, 10, 30, 2);
+            %     → moves nodes 0 and 1 between 30° ↔ 50° at 1 Hz for 10 s using trigger group 2
+        
+            if nargin < 4
+                error('Usage: bfsync(obj, nodes, amp, freq, [dur], [offset], [group])');
+            end
+        
+            % Default values
+            if nargin < 5 || isempty(dur),    dur = [];    end
+            if nargin < 6 || isempty(offset), offset = []; end
+            if nargin < 7 || isempty(group),  group = [];  end
+        
+            % Base command
+            if isempty(dur)
+                cmd = sprintf("bfsync %s amp=%g freq=%g", obj.joinNodes(nodes), amp, freq);
+            else
+                cmd = sprintf("bfsync %s amp=%g freq=%g dur=%g", obj.joinNodes(nodes), amp, freq, dur);
+            end
+        
+            % Add optional parameters
+            if ~isempty(offset)
+                cmd = cmd + sprintf(" offset=%g", offset);
+            end
+            if ~isempty(group)
+                cmd = cmd + sprintf(" group=%g", group);
+            end
+        
+            % Send to controller
+            obj.send(cmd);
+        end
+
+
         function runrpm(obj, nodes, rpm, dur)
             if nargin < 4, cmd = sprintf("runrpm %s %g", obj.joinNodes(nodes), rpm);
             else, cmd = sprintf("runrpm %s %g %g", obj.joinNodes(nodes), rpm, dur);

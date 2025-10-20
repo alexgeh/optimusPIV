@@ -92,7 +92,8 @@ function visualize_ATG(phiA, f, theta0, phi0, tSim, saveFolder, filePrefix)
             set(fig,'PaperPositionMode','auto');
 
             set(gca(), 'color', 'w');
-            export_fig(fname, '-transparent', -r300')
+            % export_fig(fname, '-transparent', -r300')
+            pause(0.1)
 
 %             print(fig,fname,'-dpng','-r300');
         else
