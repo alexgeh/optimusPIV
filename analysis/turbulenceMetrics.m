@@ -29,12 +29,19 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
     uu = mean(u_fluct.^2,3,'omitnan');
     vv = mean(v_fluct.^2,3,'omitnan');
 
+    %% time-resolved gradients
+    % for framei = 1:size(u,3)
+    % [~, dudy(:,:,framei)] = gradient(u(:,:,framei), dx, dy);
+    % end
+    % dudy_mean = mean(dudy(:),'omitnan');
+
     %% --- (1) Velocity gradient measure ---
     [dUdx, dUdy] = gradient(U, dx, dy);
     [dVdx, dVdy] = gradient(V, dx, dy);
 
     velgrad_field = sqrt(dUdx.^2 + dUdy.^2 + dVdx.^2 + dVdy.^2);
     velgrad_mean = mean(velgrad_field(:),'omitnan');
+    velgradupdown_mean = mean(dUdy(:),'omitnan');
 
 
     %% --- (2) Turbulence intensity and its gradient ---
@@ -68,11 +75,13 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
     metrics.TIgrad_std = TIgrad_std;
     metrics.CV = CV;
     metrics.velgrad_mean = velgrad_mean;
+    metrics.velgradupdown_mean = velgradupdown_mean;
     metrics.aniso_mean = aniso_mean;
 
     fields.U = U;
     fields.V = V;
     fields.velgrad = velgrad_field;
+    fields.dUdy = dUdy;
     fields.TI = TI;
     fields.TIgrad = TIgrad_field;
     fields.aniso = aniso_field;
@@ -141,5 +150,15 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         colorbar()
         clim(limits)
         title('stream-wise velocity 2')
+
+        figure(207)
+        limits = sort([0.5*velgradupdown_mean 1.5*velgradupdown_mean]);
+        nLevel = 25;
+        toplot = dUdy;
+        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        set(h,'linestyle','none')
+        colorbar()
+        clim(limits)
+        title('Velocity gradient dU/dy field')
     end
 end

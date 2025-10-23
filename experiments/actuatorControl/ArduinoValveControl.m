@@ -3,7 +3,6 @@ port = "COM3";
 % port = "/dev/cu.usbmodem1301";
 baud = 9600;
 
-
 %Clear variables
 disp("start test")
 if exist("arduino", "var")

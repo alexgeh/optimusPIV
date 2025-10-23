@@ -1,4 +1,4 @@
-function J = atgOpt_objFcn(freq, alpha, relBeta)
+function J = atgOpt_objFcn_velgrad(freq, alpha, relBeta, ampgrad, offsetgrad)
 %% Objective function for the active turbulence grid (ATG) flow field
 %  optimization
 %#ok<*GVMIS>
@@ -30,7 +30,7 @@ if elapsedTime > 15
     closeSolenoidValve(valveArduino);
     lastSeedingTime = tic;
     pause(30) % circulation of particles
-    disp("seeding complete, continuWing experiments")
+    disp("seeding complete, continuing experiments")
 end
 
 
@@ -44,15 +44,15 @@ beta = alpha*relBeta; % Ensures always alpha >= beta
 offset = -(90 - alpha - theta_min);
 ampl = 180 - 2*theta_min - alpha - beta;
 
-disp("ATG Run - freq: " + num2str(freq) + "; ampl: " + num2str(ampl) + "; offset: " + num2str(offset))
+disp("ATG Run - freq: " + num2str(freq) + "; ampl: " + num2str(ampl) + "; offset: " + num2str(offset)  + "; amplgrad: " + num2str(ampgrad) + "; offsetgrad: " + num2str(offsetgrad))
 % disp("press button to continue")
 % waitforbuttonpress(); % verify grid actuation is sound
 
-runAtgSync_optPIV(freq, ampl, offset);
+runAtgSync_optPIV_grad(freq, ampl, offset, ampgrad, offsetgrad);
 
 
 %% Transfer raw PIV to processing directory
-waitForDownloadCycle(config.log_path, 60);
+waitForDownloadCycle(config.log_path, 20);
 transfer_files(config.raw_PIV_dir, config.davis_templ_mraw, recIdx, "mraw");
 
 
@@ -66,23 +66,26 @@ transfer_files(config.davis_templ_dir, config.proc_PIV_dir, recIdx, "vc7");
 
 %% Analyze PIV
 PIVfolder = fullfile(config.proc_PIV_dir, sprintf('ms%04d', recIdx));
-[J, J_comp, metrics, fields] = objEval_turbulenceIntensity(PIVfolder);
+[J, J_comp, metrics, fields] = objEval_turbulenceIntensity_velgrad(PIVfolder);
 
 disp("Current: J = " + num2str(J) + ...
     ", J_TI = " + num2str(J_comp.J_TI) + ...
-    ", J_hom_velgrad = " + num2str(J_comp.J_hom_velgrad) + ...
+    ", J_hom_dUdy = " + num2str(J_comp.J_hom_dUdy) + ...
     ", J_hom_TIgrad = " + num2str(J_comp.J_hom_TIgrad) + ...
     ", J_hom_CV = " + num2str(J_comp.J_hom_CV) + ...
     ", J_aniso = " + num2str(J_comp.J_aniso) + ...
-    ", alpha = " + num2str(alpha) + ...
+    ", alpha = " + num2str(alpha) + newline + ...
     ", relBeta = " + num2str(relBeta) + ", freq = " + num2str(freq) ...
-    + ", ampl = " + num2str(ampl) + ", offset = " + num2str(offset))
+    + ", ampl = " + num2str(ampl) + ", offset = " + num2str(offset) ...
+    + ", ampgrad = " + num2str(ampgrad) + ", offsetgrad = " + num2str(offsetgrad))
 
 optResults(recIdx).freq = freq; 
 optResults(recIdx).alpha = alpha;
 optResults(recIdx).relBeta = relBeta;
 optResults(recIdx).ampl = ampl;
 optResults(recIdx).offset = offset;
+optResults(recIdx).ampgrad = ampgrad;
+optResults(recIdx).offsetgrad = offsetgrad;
 optResults(recIdx).J = J;
 optResults(recIdx).J_comp = J_comp;
 optResults(recIdx).metrics = metrics;

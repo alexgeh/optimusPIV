@@ -212,6 +212,59 @@ classdef ATGController < handle
             obj.send(cmd);
         end
 
+        function bfsync_grad(obj, nodes, amp, freq, dur, offset, ampgrad, offsetgrad)
+            %BFSYNC_GRAD  Back-and-forth motion with amplitude and offset gradients
+            %
+            % Usage:
+            %   bfsync_grad(obj, nodes, amp, freq)
+            %   bfsync_grad(obj, nodes, amp, freq, dur)
+            %   bfsync_grad(obj, nodes, amp, freq, dur, offset)
+            %   bfsync_grad(obj, nodes, amp, freq, dur, offset, ampgrad, offsetgrad)
+            %
+            % Parameters:
+            %   nodes      : vector of node indices
+            %   amp        : base amplitude [deg]
+            %   freq       : motion frequency [Hz]
+            %   dur        : total duration [s] (optional)
+            %   offset     : base offset angle [deg] (optional, default = 0)
+            %   ampgrad    : amplitude gradient per node [deg/node] (optional, default = 0)
+            %   offsetgrad : offset gradient per node [deg/node] (optional, default = 0)
+            %
+            % Example:
+            %   obj.bfsync_grad(0:7, 30, 1, 10, 0, -5, 10);
+            %       → Node 0: 30° amp @ 0°, Node 7: (30-5*7)= -5° amp @ 70° offset
+            
+            if nargin < 4
+                error('Usage: bfsync_grad(obj, nodes, amp, freq, [dur], [offset], [ampgrad], [offsetgrad])');
+            end
+        
+            % --- Defaults for optional args ---
+            if nargin < 5 || isempty(dur),        dur = [];       end
+            if nargin < 6 || isempty(offset),     offset = 0;     end
+            if nargin < 7 || isempty(ampgrad),    ampgrad = 0;    end
+            if nargin < 8 || isempty(offsetgrad), offsetgrad = 0; end
+        
+            % --- Base command ---
+            if isempty(dur)
+                cmd = sprintf("bfsync_grad %s amp=%g freq=%g", obj.joinNodes(nodes), amp, freq);
+            else
+                cmd = sprintf("bfsync_grad %s amp=%g freq=%g dur=%g", obj.joinNodes(nodes), amp, freq, dur);
+            end
+        
+            % --- Optional arguments ---
+            if offset ~= 0
+                cmd = cmd + sprintf(" offset=%g", offset);
+            end
+            if ampgrad ~= 0
+                cmd = cmd + sprintf(" ampgrad=%g", ampgrad);
+            end
+            if offsetgrad ~= 0
+                cmd = cmd + sprintf(" offsetgrad=%g", offsetgrad);
+            end
+        
+            % --- Send command to controller ---
+            obj.send(cmd);
+        end
 
         function runrpm(obj, nodes, rpm, dur)
             if nargin < 4, cmd = sprintf("runrpm %s %g", obj.joinNodes(nodes), rpm);

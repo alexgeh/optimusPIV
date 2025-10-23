@@ -1,9 +1,10 @@
 %% Main script - Launches the entire optimusPIV thing
 %
 %  Author: Alexander Gehrke - 20250605
+%  Updated 20251022
 %#ok<*GVMIS>
 clear
-clear global bnc triggerDelay optPIV_settings recIdx optResults
+clear global bnc triggerDelay optPIV_settings recIdx optResults valveArduino
 global bnc
 global valveArduino
 global lastSeedingTime
@@ -22,7 +23,7 @@ skipCycles = 5;
 
 %% Configure experiment and write config file
 % root_dir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\20250725_test\";
-root_dir = "C:\PIV_SANDBOX\20251017_ATG_bayes_opt_3\";
+root_dir = "C:\PIV_SANDBOX\20251022_ATG_bayes_opt_4\";
 davis_exe = "C:\DaVis\win64\DaVis.exe";
 camera_exe = "C:\Users\agehrke\Downloads\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe";
 % This needs to be the project containing the most recent calibration and
@@ -31,10 +32,10 @@ davis_project_source = "C:\PIV_SANDBOX\davis_project_source_dfd\";
 configFile = fullfile(root_dir, "experiment_config.json");
 % experimental PIV parameters
 eset = struct( ...
-    'acquisition_freq_Hz', 50, ...
+    'acquisition_freq_Hz', 20, ...
     'delta_t_us', 180, ...
     'pulse_width_us', 5, ...
-    'nDoubleFrames', 400, ...
+    'nDoubleFrames', 200, ...
     'ext_trigger', ext_trigger ...
 );
 % Communication parameters
@@ -93,9 +94,11 @@ return
 
 % Define the optimization variables
 vars = [
-    optimizableVariable('frequency', [0.5, 8])
+    optimizableVariable('frequency', [0.5, 6])
     optimizableVariable('alpha', [0, 59.5])
     optimizableVariable('relBeta', [0, 1])
+    optimizableVariable('ampgrad', [-45 45])
+    optimizableVariable('offsetgrad', [-45 45])
 ];
 
 % Define the constraint function: must return <= 0 when satisfied
@@ -104,9 +107,10 @@ vars = [
 lastSeedingTime = tic;
 
 % Run Bayesian optimization
-results = bayesopt(@(x) atgOpt_objFcn(x.frequency, x.alpha, x.relBeta), ...
+results = bayesopt(@(x) atgOpt_objFcn_velgrad(x.frequency, x.alpha, ...
+    x.relBeta, x.ampgrad, x.offsetgrad), ...
     vars, ...
-    'MaxObjectiveEvaluations', 40, ...
+    'MaxObjectiveEvaluations', 100, ...
     'IsObjectiveDeterministic', false, ...
     'AcquisitionFunctionName', 'expected-improvement-plus');
 
