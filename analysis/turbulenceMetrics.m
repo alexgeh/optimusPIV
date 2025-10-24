@@ -136,24 +136,24 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         title('Anisotropy field')
 
         figure(205)
-        toplot = u(:,:,10);
+        toplot = u(:,:,1);
         limits = [mean(toplot,'all')-mean(std(toplot),'all') mean(toplot,'all')+mean(std(toplot),'all')];
         nLevel = 25;
         [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
         colorbar()
         clim(limits)
-        title('stream-wise velocity 1')
+        title('stream-wise velocity first frame')
 
         figure(206)
-        toplot = u(:,:,11);
+        toplot = u(:,:,end);
         limits = [mean(toplot,'all')-mean(std(toplot),'all') mean(toplot,'all')+mean(std(toplot),'all')];
         nLevel = 25;
         [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
         colorbar()
         clim(limits)
-        title('stream-wise velocity 2')
+        title('stream-wise velocity last frame')
 
         figure(207)
         limits = sort([0.5*dUdy_mean 1.5*dUdy_mean]);
@@ -164,5 +164,15 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         colorbar()
         clim(limits)
         title('Velocity gradient dU/dy field')
+
+        figure(208)
+        toplot = dTI_dy;
+        limits = [mean(toplot,'all')-mean(std(toplot),'all') mean(toplot,'all')+mean(std(toplot),'all')];
+        nLevel = 25;
+        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        set(h,'linestyle','none')
+        colorbar()
+        clim(limits)
+        title('Turbulence Intensity gradient dTI/dy field')
     end
 end

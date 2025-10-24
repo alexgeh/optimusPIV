@@ -23,7 +23,7 @@ skipCycles = 5;
 
 %% Configure experiment and write config file
 % root_dir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\20250725_test\";
-root_dir = "C:\PIV_SANDBOX\20251023_ATG_bayes_opt_6\";
+root_dir = "C:\PIV_SANDBOX\20251024_ATG_bayes_opt_7\";
 davis_exe = "C:\DaVis\win64\DaVis.exe";
 camera_exe = "C:\Users\agehrke\Downloads\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe";
 % This needs to be the project containing the most recent calibration and
@@ -108,7 +108,7 @@ vars = [
 lastSeedingTime = tic;
 
 % Run Bayesian optimization
-results = bayesopt(@(x) atgOpt_objFcn_velgrad(x.frequency, x.alpha, ...
+results = bayesopt(@(x) atgOpt_objFcn_TIgrad(x.frequency, x.alpha, ...
     x.relBeta, x.ampgrad, x.offsetgrad), ...
     vars, ...
     'MaxObjectiveEvaluations', 100, ...

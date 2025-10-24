@@ -9,10 +9,10 @@ targetdudy = -2.5;
 
 doPlot = true;
 
-% Objective function weights
-wTI = 0.2207;  % weight for target TI deviation
-wH1 = 0.4405;  % weight for velocity gradient homogeneity
-wH2 = 0.2604;  % weight for turbulence intensity homogeneity
+% Objective function weights (used for run 5 = 20251023)
+wTI = 0.6927;  % weight for target TI deviation
+wH1 = 0.089;  % weight for velocity gradient homogeneity
+wH2 = 0.14;  % weight for turbulence intensity homogeneity
 wH3 = 0.0437;  % weight for homogeneity of turbulence intensity coefficient of variation
 wA  = 0.0346;  % weight for anisotropy
 

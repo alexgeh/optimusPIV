@@ -9,13 +9,18 @@ targetTIdy = -0.2;
 
 doPlot = true;
 
-% Objective function weights
-                
-wTI = 0.2192;  % weight for target TI deviation
-wH1 = 0.1533;  % weight for velocity gradient homogeneity
-wH2 = 0.5496;  % weight for turbulence intensity homogeneity
-wH3 = 0.0434;  % weight for homogeneity of turbulence intensity coefficient of variation
-wA  = 0.0344;  % weight for anisotropy
+
+% Objective function weights (used for run 6 = 20251024)
+wTI = 0.6927;  % weight for target TI deviation
+wH1 = 0.089;  % weight for velocity gradient homogeneity
+wH2 = 0.14;  % weight for turbulence intensity homogeneity
+wH3 = 0.0437;  % weight for homogeneity of turbulence intensity coefficient of variation
+wA  = 0.0346;  % weight for anisotropy
+% wTI = 0.2192;  % weight for target TI deviation
+% wH1 = 0.1533;  % weight for velocity gradient homogeneity
+% wH2 = 0.5496;  % weight for turbulence intensity homogeneity
+% wH3 = 0.0434;  % weight for homogeneity of turbulence intensity coefficient of variation
+% wA  = 0.0344;  % weight for anisotropy
 
 D = loadpiv(PIVfolder, "frameRange", legitFrames);
 x = D.x; y = D.y;

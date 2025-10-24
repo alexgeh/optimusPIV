@@ -22,7 +22,7 @@ theta_min = optPIV_settings.theta_min;
 % rho_air = optPIV_settings.rho_air;
 
 elapsedTime = toc(lastSeedingTime) / 60;
-if elapsedTime > 17
+if elapsedTime > 15
     disp("next seeding interval starting in 5sec")
     pause(5)
     openSolenoidValve(valveArduino);
