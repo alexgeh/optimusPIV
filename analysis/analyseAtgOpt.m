@@ -2,10 +2,19 @@
 %#ok<*SAGROW> 
 clear
 
-projDir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20251017_ATG_bayes_opt_3\";
-pivFolder = fullfile(projDir, "proc_PIV");
-plotDir = "R:\ENG_Breuer_Shared\agehrke\PLOTS\2025_optimusPIV\20251017_ATG_bayes_opt_3";
+optID = 4;
+switch optID
+    case 3
+        projDir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20251017_ATG_bayes_opt_3\";
+        plotDir = "R:\ENG_Breuer_Shared\agehrke\PLOTS\2025_optimusPIV\20251017_ATG_bayes_opt_3";
+    case 4
+        projDir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20251022_ATG_bayes_opt_4\";
+        plotDir = "R:\ENG_Breuer_Shared\agehrke\PLOTS\2025_optimusPIV\20251022_ATG_bayes_opt_4";
+    otherwise
+        error('opt ID not found')
+end
 
+pivFolder = fullfile(projDir, "proc_PIV");
 load(fullfile(projDir, "workspaceOptimization.mat"))
 
 variousColorMaps();
@@ -21,7 +30,11 @@ nIter = length(J);
 
 for iter = 1:nIter
     J_TI(iter) = optResults(iter).J_comp.J_TI; 
-    J_hom_velgrad(iter) = optResults(iter).J_comp.J_hom_velgrad;
+    if optID == 3
+        J_velgrad(iter) = optResults(iter).J_comp.J_hom_velgrad;
+    elseif optID == 4
+        J_hom_dUdy(iter) = optResults(iter).J_comp.J_hom_dUdy;
+    end
     J_hom_TIgrad(iter) = optResults(iter).J_comp.J_hom_TIgrad;
     J_hom_CV(iter) = optResults(iter).J_comp.J_hom_CV;
     J_aniso(iter) = optResults(iter).J_comp.J_aniso;
@@ -145,8 +158,13 @@ for iter = [23,28]%5:nIter
 %     u(isnan(u)) = 0;
 %     v(isnan(v)) = 0;
     
-    xRange = [-0.1445 0.0667]; % Was required for 20251017_ATG_bayes_opt_3 - cam1
-    yRange = [-0.0650 0.1396];
+    if optID == 3
+        xRange = [-0.1445 0.0667]; % Was required for 20251017_ATG_bayes_opt_3 - cam1
+        yRange = [-0.0650 0.1396];
+    elseif optID == 4
+        xRange = [-0.1445 0.0667]; % higher aspect ratio for 20251022 (higher y for better y-gradient resolution)
+        yRange = [-0.111 0.137];
+    end
     
     [x_crop,y_crop,u_crop,v_crop,vort_crop] = cropFields(xRange,yRange,x,y,u,v,vort);
     

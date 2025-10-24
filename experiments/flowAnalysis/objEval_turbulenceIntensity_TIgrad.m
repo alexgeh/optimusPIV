@@ -1,20 +1,21 @@
-function [J, J_comp, metrics, fields] = objEval_turbulenceIntensity_velgrad(PIVfolder)
+function [J, J_comp, metrics, fields] = objEval_turbulenceIntensity_TIgrad(PIVfolder)
 %% Automated flow field analysis for active turbulence grid (ATG) PIV optimization
 
 legitFrames = 1:190; % ADDED TO REPROCESS FILE WITHOUT FAULTY DATA (20251023)
 
 targetTI = 0.2;
-targetdudy = -2.5;
-% targetTIdy = -0.2;
+% targetdudy = -2.5;
+targetTIdy = -0.2;
 
 doPlot = true;
 
 % Objective function weights
-wTI = 0.2207;  % weight for target TI deviation
-wH1 = 0.4405;  % weight for velocity gradient homogeneity
-wH2 = 0.2604;  % weight for turbulence intensity homogeneity
-wH3 = 0.0437;  % weight for homogeneity of turbulence intensity coefficient of variation
-wA  = 0.0346;  % weight for anisotropy
+                
+wTI = 0.2192;  % weight for target TI deviation
+wH1 = 0.1533;  % weight for velocity gradient homogeneity
+wH2 = 0.5496;  % weight for turbulence intensity homogeneity
+wH3 = 0.0434;  % weight for homogeneity of turbulence intensity coefficient of variation
+wA  = 0.0344;  % weight for anisotropy
 
 D = loadpiv(PIVfolder, "frameRange", legitFrames);
 x = D.x; y = D.y;
@@ -52,16 +53,16 @@ J_TI = J_TI_raw / (targetTI + eps);           % normalized by target (scalar)
 % J_hom - homogeneity metric:
 % Target dudy
 % dUdy_err_field = fields.dudy - targetdudy;
-dUdy_err_field = fields.dUdy - targetdudy;
-J_hom_dUdy_raw = mean( (dUdy_err_field(:)).^2 );       % spatial mean of squared error
-J_hom_dUdy = J_hom_dUdy_raw / (abs(targetdudy) + eps);           % normalized by target (scalar)
+% dUdy_err_field = fields.dUdy - targetdudy;
+% J_hom_dUdy_raw = mean( (dUdy_err_field(:)).^2 );       % spatial mean of squared error
+% J_hom_dUdy = J_hom_dUdy_raw / (abs(targetdudy) + eps);           % normalized by target (scalar)
 J_hom_velgrad = metrics.velgrad_mean / (1 + metrics.velgrad_mean);
 
 J_hom_TIgrad = metrics.TIgrad_mean / (1 + metrics.TIgrad_mean);
 % J_hom_dTIdy = metrics.dTIdy_mean; % This will be our turbulence intensity gradient target
-% dTIdy_err_field = fields.dTIdy - targetTIdy;
-% J_hom_dTIdy_raw = mean( (dTIdy_err_field(:)).^2 );       % spatial mean of squared error
-% J_hom_dTIdy = J_hom_dTIdy_raw / (abs(targetTIdy) + eps);           % normalized by target (scalar)
+dTIdy_err_field = fields.dTIdy - targetTIdy;
+J_hom_dTIdy_raw = mean( (dTIdy_err_field(:)).^2 );       % spatial mean of squared error
+J_hom_dTIdy = J_hom_dTIdy_raw / (abs(targetTIdy) + eps);           % normalized by target (scalar)
 
 J_hom_CV = metrics.CV / (1 + metrics.CV); % Bounded coefficient of variation
 % J_hom = w1*J_hom_velgrad + w2*J_hom_TIgrad + w3*J_hom_CV;
@@ -70,12 +71,13 @@ J_hom_CV = metrics.CV / (1 + metrics.CV); % Bounded coefficient of variation
 % J_aniso = metrics.aniso_mean; % Unbounded
 J_aniso = metrics.aniso_mean / (1 + metrics.aniso_mean); % Bounded
 
-J = wTI*J_TI + wH1*J_hom_dUdy + wH2*J_hom_TIgrad + wH3*J_hom_CV + wA*J_aniso;
+J = wTI*J_TI + wH1*J_hom_velgrad + wH2*J_hom_dTIdy + wH3*J_hom_CV + wA*J_aniso;
 
 J_comp.J_TI = J_TI;
-J_comp.J_hom_dUdy = J_hom_dUdy;
+% J_comp.J_hom_dUdy = J_hom_dUdy;
 J_comp.J_hom_velgrad = J_hom_velgrad;
 J_comp.J_hom_TIgrad = J_hom_TIgrad;
+J_comp.J_hom_dTIdy = J_hom_dTIdy;
 J_comp.J_hom_CV = J_hom_CV;
 J_comp.J_aniso = J_aniso;
 

@@ -1,12 +1,23 @@
 %% Script to analyze ATG PIV optimization sensitivity between input
 %  parameters and objective function evalutions
 %#ok<*SAGROW> 
+clear
 
 %% Data structure - Load and organize data
-projDir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20251017_ATG_bayes_opt_3\";
-pivFolder = fullfile(projDir, "proc_PIV");
-plotDir = "R:\ENG_Breuer_Shared\agehrke\PLOTS\2025_optimusPIV\20251017_ATG_bayes_opt_3";
+optID = 4;
 
+switch optID
+    case 3
+        projDir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20251017_ATG_bayes_opt_3\";
+        plotDir = "R:\ENG_Breuer_Shared\agehrke\PLOTS\2025_optimusPIV\20251017_ATG_bayes_opt_3";
+    case 4
+        projDir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20251022_ATG_bayes_opt_4\";
+        plotDir = "R:\ENG_Breuer_Shared\agehrke\PLOTS\2025_optimusPIV\20251022_ATG_bayes_opt_4";
+    otherwise
+        error('opt ID not found')
+end
+
+pivFolder = fullfile(projDir, "proc_PIV");
 load(fullfile(projDir, "workspaceOptimization.mat"))
 
 variousColorMaps();
@@ -21,8 +32,12 @@ theta = [optResults.offset]';
 nIter = length(Jtot);
 
 for iter = 1:nIter
-    J_TI(iter) = optResults(iter).J_comp.J_TI; 
-    J_velgrad(iter) = optResults(iter).J_comp.J_hom_velgrad;
+    J_TI(iter) = optResults(iter).J_comp.J_TI;
+    if optID == 3
+        J_velgrad(iter) = optResults(iter).J_comp.J_hom_velgrad;
+    elseif optID == 4
+        J_hom_dUdy(iter) = optResults(iter).J_comp.J_hom_dUdy;
+    end
     J_TIgrad(iter) = optResults(iter).J_comp.J_hom_TIgrad;
     J_CV(iter) = optResults(iter).J_comp.J_hom_CV;
     J_aniso(iter) = optResults(iter).J_comp.J_aniso;
@@ -37,7 +52,11 @@ for iter = 1:nIter
 end
 
 J_TI = J_TI'; 
-J_velgrad = J_velgrad';
+if optID == 3
+    J_velgrad = J_velgrad';
+elseif optID == 4
+    J_hom_dUdy = J_hom_dUdy';
+end
 J_TIgrad = J_TIgrad';
 J_CV = J_CV';
 J_aniso = J_aniso';
@@ -63,8 +82,11 @@ fprintf('Worst trial #%d: f=%.3f A=%.3f theta=%.3f J=%.4f TI=%.3f\n', ...
 
 %% correlations (params vs metrics)
 X = [f, A, theta];
-Y = [J_TI, J_velgrad, J_TIgrad, J_CV, J_aniso, Jtot, TI_mean];
-
+if optID == 3
+    Y = [J_TI, J_velgrad, J_TIgrad, J_CV, J_aniso, Jtot, TI_mean];
+elseif optID == 4
+    Y = [J_TI, J_hom_dUdy, J_TIgrad, J_CV, J_aniso, Jtot, TI_mean];
+end
 paramNames = {'f','A','theta'};
 metricNames = {'J_TI','J_velgrad','J_TIgrad','J_CV','J_aniso','Jtot','TI_mean'};
 
@@ -155,7 +177,7 @@ title('CV vs anisotropy');
 % --- Optional: label the interesting points (best, feasible few) ---
 label_points = @(ix) arrayfun(@(i) text(TI_mean(i), J_CV(i), sprintf('  %d',i),'FontSize',9,'Color','k'), ix);
 % label best and top few feasible
-label_points(idx_best);
+label_points(ibest);
 feas_idx_list = find(idx_feasible);
 if ~isempty(feas_idx_list)
     label_points(feas_idx_list(1:min(5,numel(feas_idx_list))));
@@ -198,7 +220,11 @@ wH2 = 0.01;  % weight for turbulence intensity homogeneity
 wH3 = 0.28;  % weight for homogeneity of turbulence intensity coefficient of variation
 wA  = 0.1;  % weight for anisotropy
 %  assemble matrix of raw metric columns (use your actual metrics)
-M = [J_TI, J_velgrad, J_TIgrad, J_CV, J_aniso]; % Nx5
+if optID == 3
+    M = [J_TI, J_velgrad, J_TIgrad, J_CV, J_aniso]; % Nx5
+elseif optID == 4
+    M = [J_TI, J_hom_dUdy, J_TIgrad, J_CV, J_aniso]; % Nx5
+end
 w = [wTI, wH1, wH2, wH3, wA];                    % 1x5
 
 % per-trial contributions
@@ -243,8 +269,8 @@ disp(array2table(partialR2, 'VariableNames', tbl.Properties.VariableNames(1:end-
 %% Re-weighting suggestion (automatic, based on desired contribution proportions)
 m_best = M(ibest,:); % 1x5 raw metrics at best
 % wTI w_velgrad w_TIgrad w_CV wA:
-d = [0.6, 0.1, 0.05, 0.2, 0.05]; % example desired fractions
-% d = [0.4, 0.4, 0.1, 0.05, 0.05]; % example desired fractions
+% d = [0.6, 0.1, 0.05, 0.2, 0.05]; % example desired fractions
+d = [0.4, 0.4, 0.1, 0.05, 0.05]; % example desired fractions
 w_sugg = d ./ (m_best + eps);
 w_sugg = w_sugg / sum(w_sugg); % normalize to sum 1 (optional)
 disp('Suggested normalized weights:'); disp(w_sugg);
@@ -288,8 +314,6 @@ colorbar;
 %% Dominance / Pareto check
 P = pareto_bool([J_TI, J_CV, J_aniso]);
 sum(P) % number of Pareto-efficient points
-
-
 
 function isPareto = pareto_bool(objs)
 % objs: N x K matrix (minimize each column)

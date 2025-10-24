@@ -41,7 +41,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
 
     velgrad_field = sqrt(dUdx.^2 + dUdy.^2 + dVdx.^2 + dVdy.^2);
     velgrad_mean = mean(velgrad_field(:),'omitnan');
-    velgradupdown_mean = mean(dUdy(:),'omitnan');
+    dUdy_mean = mean(dUdy(:),'omitnan');
 
 
     %% --- (2) Turbulence intensity and its gradient ---
@@ -51,6 +51,8 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
     TIgrad_field = sqrt(dTI_dx.^2 + dTI_dy.^2);
     TIgrad_mean = mean(TIgrad_field(:),'omitnan');
     TIgrad_std = std(TIgrad_field(:),'omitnan');
+
+    dTIdy_mean = mean(dTI_dy(:),'omitnan');
 
 
     %% --- (3) Homogeneity CV ---
@@ -73,9 +75,10 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
     metrics.TI_std = TI_std;
     metrics.TIgrad_mean = TIgrad_mean;
     metrics.TIgrad_std = TIgrad_std;
+    metrics.dTIdy_mean = dTIdy_mean;
     metrics.CV = CV;
     metrics.velgrad_mean = velgrad_mean;
-    metrics.velgradupdown_mean = velgradupdown_mean;
+    metrics.dudy_mean = dUdy_mean;
     metrics.aniso_mean = aniso_mean;
 
     fields.U = U;
@@ -84,6 +87,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
     fields.dUdy = dUdy;
     fields.TI = TI;
     fields.TIgrad = TIgrad_field;
+    fields.dTIdy = dTI_dy;
     fields.aniso = aniso_field;
 
 
@@ -152,7 +156,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         title('stream-wise velocity 2')
 
         figure(207)
-        limits = sort([0.5*velgradupdown_mean 1.5*velgradupdown_mean]);
+        limits = sort([0.5*dUdy_mean 1.5*dUdy_mean]);
         nLevel = 25;
         toplot = dUdy;
         [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
