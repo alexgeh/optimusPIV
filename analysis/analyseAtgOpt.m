@@ -2,18 +2,41 @@
 %#ok<*SAGROW> 
 clear
 
-optID = 4;
+optID = 6;
 switch optID
-    case 3
-        projDir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20251017_ATG_bayes_opt_3\";
-        plotDir = "R:\ENG_Breuer_Shared\agehrke\PLOTS\2025_optimusPIV\20251017_ATG_bayes_opt_3";
-    case 4
-        projDir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20251022_ATG_bayes_opt_4\";
-        plotDir = "R:\ENG_Breuer_Shared\agehrke\PLOTS\2025_optimusPIV\20251022_ATG_bayes_opt_4";
+    case 3 % Synchronous ATG control - TI_target = 0.2, homogenous, isotropic
+        projStr = "20251017_ATG_bayes_opt_3";
+        xRange = [-0.1445 0.0667]; % Was required for 20251017_ATG_bayes_opt_3 - cam1
+        yRange = [-0.0650 0.1396];
+        nPlotFrames = 200;
+    % Cases 4,5,6:
+    % Gradient ATG control - TI_target = 0.2, dudy = -2.5, min TI gradient
+    case 4 % !! LAST 10 PIV FRAMES FAULTY !! -> optim. not usable
+        projStr = "20251022_ATG_bayes_opt_4";
+        xRange = [-0.1445 0.0667]; % higher aspect ratio for 20251022 (higher y for better y-gradient resolution)
+        yRange = [-0.111 0.137];
+        nPlotFrames = 190; % LAST 10 FRAMES NOT ILLUMINATED
+    case 5 % !! DID NOT CONVERGE !! -> optim. not usable
+        projStr = "20251022_ATG_bayes_opt_4";
+        xRange = [-0.1445 0.0667]; % higher aspect ratio for 20251022 (higher y for better y-gradient resolution)
+        yRange = [-0.111 0.137];
+        nPlotFrames = 190;
+    case 6 % succesful run of "Gradient ATG control - TI_target = 0.2, dudy = -2.5, min TI gradient"
+        projStr = "20251023_ATG_bayes_opt_6";
+        xRange = [-0.1445 0.0667]; % higher aspect ratio for 20251022 (higher y for better y-gradient resolution)
+        yRange = [-0.111 0.137];
+        nPlotFrames = 190;
+    case 7 % Gradient ATG control - TI_target = 0.2, dTIdy = -0.2, min vel gradient
+        projStr = "20251024_ATG_bayes_opt_7";
+        xRange = [-0.1445 0.0667]; % higher aspect ratio for 20251022 (higher y for better y-gradient resolution)
+        yRange = [-0.111 0.137];
+        nPlotFrames = 190;
     otherwise
-        error('opt ID not found')
+        error('opt ID not found - cannot continue')
 end
 
+projDir = fullfile("R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\", projStr);
+plotDir = fullfile("R:\ENG_Breuer_Shared\agehrke\PLOTS\2025_optimusPIV\", projStr);
 pivFolder = fullfile(projDir, "proc_PIV");
 load(fullfile(projDir, "workspaceOptimization.mat"))
 
@@ -32,7 +55,7 @@ for iter = 1:nIter
     J_TI(iter) = optResults(iter).J_comp.J_TI; 
     if optID == 3
         J_velgrad(iter) = optResults(iter).J_comp.J_hom_velgrad;
-    elseif optID == 4
+    elseif optID == 4 || optID == 5
         J_hom_dUdy(iter) = optResults(iter).J_comp.J_hom_dUdy;
     end
     J_hom_TIgrad(iter) = optResults(iter).J_comp.J_hom_TIgrad;
@@ -51,14 +74,17 @@ end
 
 %% Plot all flow fields:
 %% Average Streamwise Velocity Field
-figure()
+targetFolder = fullfile(plotDir, "flowfields", "U");
+ensureTopLevelFolder(targetFolder);
+figure(501)
 for iter = 1:nIter
-    fname = fullfile(plotDir, "flowFields", "U", "U_" + mpt2str(iter) + ".png");
+    fname = fullfile(targetFolder, "U_" + mpt2str(iter) + ".png");
     toplot = optResults(iter).fields.U;
     limits = [mean(toplot(:))-2*std(toplot(:)) mean(toplot(:))+2*std(toplot(:))];
     nLevel = 40;
     [C,h] = contourf(toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
     set(h,'linestyle','none')
+    colormap('jet')
     a=colorbar;
     a.Label.String = 'U';
     clim(limits)
@@ -67,14 +93,17 @@ end
 
 
 %% Average Crossstream Velocity Field
-figure()
+targetFolder = fullfile(plotDir, "flowfields", "V");
+ensureTopLevelFolder(targetFolder);
+figure(502)
 for iter = 1:nIter
-    fname = fullfile(plotDir, "flowFields", "V", "V_" + mpt2str(iter) + ".png");
+    fname = fullfile(targetFolder, "V_" + mpt2str(iter) + ".png");
     toplot = optResults(iter).fields.V;
     limits = [mean(toplot(:))-2*std(toplot(:)) mean(toplot(:))+2*std(toplot(:))];
     nLevel = 40;
     [C,h] = contourf(toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
     set(h,'linestyle','none')
+    colormap('jet')
     a=colorbar;
     a.Label.String = 'V';
     clim(limits)
@@ -83,9 +112,11 @@ end
 
 
 %% Average Turbulence Intensity Field
-figure()
+targetFolder = fullfile(plotDir, "flowfields", "TI");
+ensureTopLevelFolder(targetFolder);
+figure(503)
 for iter = 1:nIter
-    fname = fullfile(plotDir, "flowFields", "TI", "TI_" + mpt2str(iter) + ".png");
+    fname = fullfile(targetFolder, "TI_" + mpt2str(iter) + ".png");
     toplot = optResults(iter).fields.TI;
     limits = [mean(toplot(:))-2*std(toplot(:)) mean(toplot(:))+2*std(toplot(:))];
     nLevel = 40;
@@ -99,9 +130,11 @@ end
 
 
 %% Average Anisotropy Field
-figure()
+targetFolder = fullfile(plotDir, "flowfields", "aniso");
+ensureTopLevelFolder(targetFolder);
+figure(504)
 for iter = 1:nIter
-    fname = fullfile(plotDir, "flowFields", "aniso", "aniso_" + mpt2str(iter) + ".png");
+    fname = fullfile(targetFolder, "aniso_" + mpt2str(iter) + ".png");
     toplot = optResults(iter).fields.aniso;
     limits = [mean(toplot(:))-2*std(toplot(:)) mean(toplot(:))+2*std(toplot(:))];
     nLevel = 40;
@@ -115,9 +148,11 @@ end
 
 
 %% Average Velocity Gradient Field
-figure()
+targetFolder = fullfile(plotDir, "flowfields", "velgrad");
+ensureTopLevelFolder(targetFolder);
+figure(505)
 for iter = 1:nIter
-    fname = fullfile(plotDir, "flowFields", "velgrad", "velgrad_" + mpt2str(iter) + ".png");
+    fname = fullfile(targetFolder, "velgrad_" + mpt2str(iter) + ".png");
     toplot = optResults(iter).fields.velgrad;
     limits = [mean(toplot(:))-2*std(toplot(:)) mean(toplot(:))+2*std(toplot(:))];
     nLevel = 40;
@@ -131,9 +166,11 @@ end
 
 
 %% Average Turbulence Intensity Gradient Field
-figure()
+targetFolder = fullfile(plotDir, "flowfields", "TIgrad");
+ensureTopLevelFolder(targetFolder);
+figure(506)
 for iter = 1:nIter
-    fname = fullfile(plotDir, "flowFields", "TIgrad", "TIgrad_" + mpt2str(iter) + ".png");
+    fname = fullfile(targetFolder, "TIgrad_" + mpt2str(iter) + ".png");
     toplot = optResults(iter).fields.TIgrad;
     limits = [mean(toplot(:))-2*std(toplot(:)) mean(toplot(:))+2*std(toplot(:))];
     nLevel = 40;
@@ -145,10 +182,15 @@ for iter = 1:nIter
     export_fig(fname, '-png', '-opengl','-r600');
 end
 
-
+return
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %% TIME RESOLVED PLOTS:
-for iter = [23,28]%5:nIter
+% Create folder for all time-resolved flow field plots
+ensureTopLevelFolder(fullfile(plotDir, "flowfields", "u_timeres"));
+ensureTopLevelFolder(fullfile(plotDir, "flowfields", "v_timeres"));
+ensureTopLevelFolder(fullfile(plotDir, "flowfields", "vort_timeres"));
+
+for iter = 1:nIter
     folder = fullfile(pivFolder, sprintf('ms%.4d', iter));
     D = loadpiv(folder);
     x = D.x; y = D.y;
@@ -158,21 +200,13 @@ for iter = [23,28]%5:nIter
 %     u(isnan(u)) = 0;
 %     v(isnan(v)) = 0;
     
-    if optID == 3
-        xRange = [-0.1445 0.0667]; % Was required for 20251017_ATG_bayes_opt_3 - cam1
-        yRange = [-0.0650 0.1396];
-    elseif optID == 4
-        xRange = [-0.1445 0.0667]; % higher aspect ratio for 20251022 (higher y for better y-gradient resolution)
-        yRange = [-0.111 0.137];
-    end
-    
     [x_crop,y_crop,u_crop,v_crop,vort_crop] = cropFields(xRange,yRange,x,y,u,v,vort);
     
     %% Streamwise Velocity Field
     targetFolder = fullfile(plotDir, "flowfields", "u_timeres", sprintf('ms%.4d', iter));
     ensureTopLevelFolder(targetFolder);
-    figure()
-    for iFrame = 1:nFrames
+    figure(507)
+    for iFrame = 1:nPlotFrames
         fname = fullfile(targetFolder, "u_" + mpt2str(iFrame) + ".png");
         toplot = u_crop(:,:,iFrame);
         limits = [mean(u_crop(:))-2*std(u_crop(:)) mean(u_crop(:))+2*std(u_crop(:))];
@@ -189,8 +223,8 @@ for iter = [23,28]%5:nIter
     %% Crossstream Velocity Field
     targetFolder = fullfile(plotDir, "flowfields", "v_timeres", sprintf('ms%.4d', iter));
     ensureTopLevelFolder(targetFolder);
-    figure()
-    for iFrame = 1:nFrames
+    figure(508)
+    for iFrame = 1:nPlotFrames
         fname = fullfile(targetFolder, "v_" + mpt2str(iFrame) + ".png");
         toplot = v_crop(:,:,iFrame);
         limits = [mean(v_crop(:))-2*std(v_crop(:)) mean(v_crop(:))+2*std(v_crop(:))];
@@ -207,8 +241,8 @@ for iter = [23,28]%5:nIter
     %% Vorticity Field
     targetFolder = fullfile(plotDir, "flowfields", "vort_timeres", sprintf('ms%.4d', iter));
     ensureTopLevelFolder(targetFolder);
-    figure()
-    for iFrame = 1:nFrames
+    figure(509)
+    for iFrame = 1:nPlotFrames
         fname = fullfile(targetFolder, "vort_" + mpt2str(iFrame) + ".png");
         toplot = vort_crop(:,:,iFrame);
         limits = [-2*std(vort_crop(:)) 2*std(vort_crop(:))];
@@ -247,4 +281,97 @@ for iter = 1:nIter
 end
 cd(currentDir) % go back to original directory
 %     
+
+
+%% Display best / worst
+[bestJ,ibest] = min(J);
+[worstJ,iworst] = max(J);
+fprintf('Best trial #%d: f=%.3f A=%.3f theta=%.3f J=%.4f TI=%.3f\n', ...
+ibest, freq(ibest), ampl(ibest), offset(ibest), J(ibest), TI_mean(ibest));
+fprintf('Worst trial #%d: f=%.3f A=%.3f theta=%.3f J=%.4f TI=%.3f\n', ...
+iworst, freq(iworst), ampl(iworst), offset(iworst), J(iworst), TI_mean(iworst));
+
+
+%% Plotting of metrics
+yRangeArray = linspace(0,yRange(2)-yRange(1),length(toplot));
+yHeight = yRange(2)-yRange(1);
+
+% U
+toplot = mean(optResults(8).fields.U,2);
+figure(); hold on;
+plot(yRangeArray, toplot);
+plot([0 yHeight], mean(toplot)*ones(2,1));
+% plot(yRange-yRange(1), 0*ones(2,1), 'Color', 'black');
+xlabelg("$$y [m]$$"); ylabelg("$$U$$");
+
+% dU_dy
+toplot = mean(optResults(8).fields.dUdy,2);
+figure(); hold on;
+plot(yRangeArray, toplot);
+plot([0 yHeight], mean(toplot)*ones(2,1));
+plot([0 yHeight], 0*ones(2,1), 'Color', 'black');
+xlabelg("$$y [m]$$"); ylabelg("$$dU/dy$$");
+
+% TI
+toplot = mean(optResults(8).fields.TI,2);
+dTIdy_mean = mean(optResults(8).fields.dTIdy,'all');
+dTIdy_Delta = dTIdy_mean*yHeight/2;
+
+figure(); hold on;
+plot(yRangeArray, toplot);
+% plot([0 yHeight], mean(toplot)*ones(2,1));
+plot([0 yHeight], [mean(toplot)-dTIdy_Delta, mean(toplot)+dTIdy_Delta]);
+xlabelg("$$y [m]$$"); ylabelg("$$TI$$");
+
+% dTI_dy
+toplot = mean(optResults(8).fields.dTIdy,2);
+figure(); hold on;
+plot(linspace(0,yRange(2)-yRange(1),length(toplot)), toplot);
+plot([0 yHeight], mean(toplot)*ones(2,1));
+plot([0 yHeight], -0.2*ones(2,1), 'Color', 'black');
+xlabelg("$$y [m]$$"); ylabelg("$$dTI/dy$$");
+
+
+%% best case 6
+yRangeArray = linspace(0,yRange(2)-yRange(1),length(toplot));
+yHeight = yRange(2)-yRange(1);
+
+% U
+toplot = mean(optResults(ibest).fields.U,2);
+dUdy_mean = mean(optResults(ibest).fields.dUdy,'all');
+dUdy_Delta = dUdy_mean*yHeight/2;
+
+figure(); hold on;
+plot(yRangeArray, toplot);
+% plot([0 yHeight], mean(toplot)*ones(2,1));
+plot([0 yHeight], [mean(toplot)-dUdy_Delta, mean(toplot)+dUdy_Delta]);
+% plot(yRange-yRange(1), 0*ones(2,1), 'Color', 'black');
+xlabelg("$$y [m]$$"); ylabelg("$$U$$");
+
+% dU_dy
+toplot = mean(optResults(ibest).fields.dUdy,2);
+figure(); hold on;
+plot(yRangeArray, toplot);
+plot([0 yHeight], mean(toplot)*ones(2,1));
+plot([0 yHeight], -2.5*ones(2,1), 'Color', 'black');
+xlabelg("$$y [m]$$"); ylabelg("$$dU/dy$$");
+
+% TI
+toplot = mean(optResults(ibest).fields.TI,2);
+dTIdy_mean = mean(optResults(8).fields.dTIdy,'all');
+dTIdy_Delta = dTIdy_mean*yHeight/2;
+
+figure(); hold on;
+plot(yRangeArray, toplot);
+plot([0 yHeight], mean(toplot)*ones(2,1));
+% plot([0 yHeight], [mean(toplot)-dTIdy_Delta, mean(toplot)+dTIdy_Delta]);
+xlabelg("$$y [m]$$"); ylabelg("$$TI$$");
+
+% dTI_dy
+toplot = mean(optResults(ibest).fields.dTIdy,2);
+figure(); hold on;
+plot(linspace(0,yRange(2)-yRange(1),length(toplot)), toplot);
+plot([0 yHeight], mean(toplot)*ones(2,1));
+plot([0 yHeight], 0*ones(2,1), 'Color', 'black');
+xlabelg("$$y [m]$$"); ylabelg("$$dTI/dy$$");
 
