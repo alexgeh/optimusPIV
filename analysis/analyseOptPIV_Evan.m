@@ -50,6 +50,10 @@ load(fullfile(projDir, "workspaceOptimization.mat"))
 
 % variousColorMaps();
 
+
+%%
+
+
 %% Extract and relabel data
 J = [optResults.J];
 freq = [optResults.freq];
@@ -90,14 +94,14 @@ fprintf('Worst trial #%d: f=%.3f A=%.3f theta=%.3f J=%.4f TI=%.3f\n', ...
 
 
 %% correlations (params vs metrics)
-inputData = [freq', ampl', offset', alpha', relBeta'];
+inputData = [freq', ampl', offset'];
 if optID == 3
-    outputData = [J_TI', J_velgrad', J_hom_TIgrad', J_hom_CV', J_aniso', J', TI_mean'];
+    outputData = [TI_mean', TIgrad_mean', velgrad_mean',CV',aniso_mean'];
 elseif optID == 4
-    outputData = [J_TI', J_hom_dUdy', J_hom_TIgrad', J_hom_CV', J_aniso', J', TI_mean'];
+    outputData = [J', J_TI', J_hom_dUdy', J_hom_TIgrad', J_hom_CV', J_aniso', TI_mean', TIgrad_mean'];
 end
-paramNames = {'freq','ampl','offset','alpha','relBeta'};
-metricNames = {'J_TI','J_velgrad','J_hom_TIgrad','J_hom_CV','J_aniso','J_tot','TI_mean'};
+paramNames = {'freq','ampl','offset'};
+metricNames = {'TI_mean','TIgrad_mean','velgrad_mean','CV','aniso_mean'};
 
 R = corr([inputData outputData],'rows','complete'); % get full correl matrix
 % extract param vs metric block
@@ -126,8 +130,10 @@ colorbar;
 set(gca, 'XTick', 1:numel(metricNames), 'XTickLabel', metricNames, ...
          'YTick', 1:numel(paramNames), 'YTickLabel', paramNames, ...
          'TickLabelInterpreter','none', 'XTickLabelRotation',45);
-xlabel('Input parameters'); ylabel('Output metrics');
-title('Correlation between inputs and outputs');
+% xlabel('Input parameters'); ylabel('Output metrics');
+ax = gca;
+ax.FontSize = 16;
+% title('Correlation between inputs and outputs');
 
 % overlay numeric correlation values
 for i = 1:size(Rpm,1)
@@ -136,7 +142,7 @@ for i = 1:size(Rpm,1)
         % overlay text
         text(j, i, sprintf('%.2f', val), ...
             'HorizontalAlignment','center', ...
-            'FontSize',9);
+            'FontSize',14);
     end
 end
 

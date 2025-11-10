@@ -9,7 +9,7 @@ targetdudy = -2.5;
 
 doPlot = true;
 
-% Objective function weights (used for run 5 = 20251023)
+% Objective function weights (used for run 6 = 20251023)
 wTI = 0.6927;  % weight for target TI deviation
 wH1 = 0.089;  % weight for velocity gradient homogeneity
 wH2 = 0.14;  % weight for turbulence intensity homogeneity

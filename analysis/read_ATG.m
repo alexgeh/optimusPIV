@@ -24,7 +24,7 @@ params.L = 1;
 % we f
 % figure out the normalization later
 
-for Case = [1 2 3 4];
+for Case = 4%[1 2 3 4];
 
     if Case == 5
         % Case 5 is different
