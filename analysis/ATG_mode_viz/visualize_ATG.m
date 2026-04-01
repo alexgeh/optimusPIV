@@ -15,6 +15,7 @@ function visualize_ATG(phiA, f, theta0, phi0, tSim, saveFolder, filePrefix)
     end
 
     fig = figure('Visible','off'); % off for faster export
+%     fig = figure(); % off for faster export
     hold on;
     axis equal;
     axis off;
@@ -75,7 +76,7 @@ function visualize_ATG(phiA, f, theta0, phi0, tSim, saveFolder, filePrefix)
 
         % Save frame if requested
         if nargin > 5 && ~isempty(saveFolder)
-            fname = sprintf('%s/%s_%04d.png',saveFolder,filePrefix,k);
+            fname = sprintf('%s/%s_%05d.png',saveFolder,filePrefix,k);
 
             % Define your fixed export size in inches (or cm)
             width = 5;   % inches
@@ -92,7 +93,7 @@ function visualize_ATG(phiA, f, theta0, phi0, tSim, saveFolder, filePrefix)
             set(fig,'PaperPositionMode','auto');
 
             set(gca(), 'color', 'w');
-            % export_fig(fname, '-transparent', -r300')
+            export_fig(fname, '-dpng', '-transparent', '-r300')
             pause(0.1)
 
 %             print(fig,fname,'-dpng','-r300');

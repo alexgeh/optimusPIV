@@ -1,56 +1,81 @@
-function plotConvergence(J)
+function plotConvergence(J, varargin)
 % plotConvergence  Plot optimization progress with highlighted improvements
 %
 %   plotConvergence(J)
+%   plotConvergence(J, 'AllColor', [...], 'ImpColor', [...], 'MarkerFaceColor', [...])
 %
 %   Inputs:
 %       J : Vector of fitness values (size [nIterations x 1])
 %
-%   This function plots all fitness values as markers and connects
-%   only the improving iterations (monotonic decreases of J)
-%   to highlight convergence behavior. After the last improvement,
-%   the improvement line continues horizontally to the final iteration
-%   to indicate the optimization floor.
+%   Name–value optional inputs:
+%       'AllColor'        : Color of all-iteration markers (default: [0.7 0.7 0.7])
+%       'AllEdgeColor'    : Edge color of all-iteration markers (default: 'k')
+%       'ImpColor'        : Color of improvement line & markers (default: [0 0.45 0.74])
+%       'ImpLineWidth'    : Line width of improvement curve (default: 1.5)
 
-    % Ensure J is a column vector
+    % -------------------------
+    % Parse optional inputs
+    % -------------------------
+    p = inputParser;
+    p.CaseSensitive = false;
+
+    addParameter(p, 'AllColor',        [0.7 0.7 0.7]);
+    addParameter(p, 'AllEdgeColor',    'k');
+    addParameter(p, 'ImpColor',        [0 0.45 0.74]);
+    addParameter(p, 'ImpLineWidth',    1.5);
+
+    parse(p, varargin{:});
+    opts = p.Results;
+
+    % -------------------------
+    % Ensure column vector
+    % -------------------------
     J = J(:);
     nIter = numel(J);
     iter = 1:nIter;
 
-    % Identify improvement points (strictly decreasing)
+    % -------------------------
+    % Identify improvement points
+    % -------------------------
     Jmin = J(1);
     isImprovement = false(size(J));
     isImprovement(1) = true;
-    for k = 1:nIter
+
+    for k = 2:nIter
         if J(k) < Jmin
             Jmin = J(k);
             isImprovement(k) = true;
         end
     end
 
-    % Prepare figure
-    figure; hold on; grid on; box on;
+    % -------------------------
+    % Plot
+    % -------------------------
+    figure(7456); hold on;
+    box on;
 
-    % Plot all points
-    plot(iter, J, 'o', 'MarkerFaceColor', [0.7 0.7 0.7], 'MarkerEdgeColor', 'k');
+    % All iterations
+    plot(iter, J, 'o', ...
+        'MarkerFaceColor', opts.AllColor, ...
+        'MarkerEdgeColor', opts.AllEdgeColor);
 
-    % Plot improvement curve
+    % Improvement curve
     impIdx = find(isImprovement);
     plot(iter(impIdx), J(impIdx), '-o', ...
-        'Color', [0 0.45 0.74], 'MarkerFaceColor', [0 0.45 0.74], ...
-        'LineWidth', 1.5);
+        'Color', opts.ImpColor, ...
+        'MarkerFaceColor', opts.ImpColor, ...
+        'LineWidth', opts.ImpLineWidth);
 
-    % Extend last improvement horizontally to end
+    % Extend last improvement horizontally
     if ~isempty(impIdx)
         lastImpIter = impIdx(end);
-        lastImpVal = J(lastImpIter);
+        lastImpVal  = J(lastImpIter);
         plot([lastImpIter nIter], [lastImpVal lastImpVal], ...
-            'Color', [0 0.45 0.74], 'LineWidth', 1.2);
+            'Color', opts.ImpColor, ...
+            'LineWidth', opts.ImpLineWidth - 0.3);
     end
 
     xlabelg('Iteration');
     ylabelg('Fitness value, $$J$$');
-    title('Optimization Convergence');
-    legend('All iterations', 'Improvements', 'Location', 'best');
+%     legend('All iterations', 'Improvements', 'Location', 'best');
 end
-

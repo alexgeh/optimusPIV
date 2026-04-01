@@ -5,10 +5,11 @@ clear
 
 %% Processing parameters:
 localPC = 1; % 1: office PC, 2: Legion (laptop)
-optID = 7;
+optID = 3;
 plotPIV = false; % Plot PIV - !! Will take VEEERY long !!
 % L = 0.123; % Characteristic length [m], diagonal length of panels
-L = 0.087; % Characteristic length [m], width of panels
+L = 0.087 / 2; % Characteristic length [m], width of panels
+PIVdx = 0.001630007922649; % Pixel length of PIV frames
 
 
 %% File system thingies:
@@ -147,8 +148,6 @@ if optID == 4 || optID == 5  || optID == 6 || optID == 7
     offsetgrad = [optResults.offsetgrad];
 end
 
-
-
 nIter = length(J);
 for iter = 1:nIter
     J_TI(iter) = optResults(iter).J_comp.J_TI; 
@@ -175,6 +174,14 @@ for iter = 1:nIter
     aniso_mean(iter) = optResults(iter).metrics.aniso_mean;
 end
 
+[nX,nY] = size(optResults(1).fields.U);
+
+x = (0:nY-1) * PIVdx;
+y = (0:nX-1) * PIVdx;
+
+% Create coordinate matrices
+[X, Y] = meshgrid(x, y);
+
 % return
 
 
@@ -184,18 +191,33 @@ if plotPIV
 targetFolder = fullfile(plotDir, "flowfields", "U");
 ensureTopLevelFolder(targetFolder);
 figure(501)
-for iter = 1:nIter
+% for iter = 1:nIter
+for iter = [23, 33, 28, 14] % Cases to present at DFD - opt 3
     fname = fullfile(targetFolder, "U_" + mpt2str(iter) + ".png");
+    
     toplot = optResults(iter).fields.U;
+    meanU = mean(toplot(:));
+    toplot = toplot / meanU;
     limits = [mean(toplot(:))-2*std(toplot(:)) mean(toplot(:))+2*std(toplot(:))];
     nLevel = 40;
-    [C,h] = contourf(toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+    [C,h] = contourf(X/L, Y/L, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
     set(h,'linestyle','none')
-    colormap('jet')
-    a=colorbar;
-    a.Label.String = 'U';
-    clim(limits)
-    export_fig(fname, '-png', '-opengl','-r600');
+    axis equal;
+    colormap('jet');
+    clim(limits);
+    hcb=colorbar;
+    hcb.Label.Interpreter = 'latex';
+    hcb.Label.String = '$$U / \bar{U}$$';
+    hcb.FontSize = 14; % Set the font size of the tick labels
+%     clim([0.90 1.10]);
+    set(hcb,'YTick',0.96:0.02:1.04);
+    hcb.Label.FontSize = 14; % Set desired font size
+    xlabelg('$$x/L$$'); ylabelg('$$y/L$$'); 
+    ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
+    xticks(0:1:4); yticks(0:1:4);
+    set(gcf, 'Color', 'white')
+
+    export_fig(fname, '-png', '-transparent', '-opengl','-r600');
 end
 
 
@@ -297,7 +319,7 @@ ensureTopLevelFolder(fullfile(plotDir, "flowfields", "u_timeres"));
 ensureTopLevelFolder(fullfile(plotDir, "flowfields", "v_timeres"));
 ensureTopLevelFolder(fullfile(plotDir, "flowfields", "vort_timeres"));
 
-for iter = 1:nIter
+for iter = 23%1:nIter
     folder = fullfile(pivFolder, sprintf('ms%.4d', iter));
     D = loadpiv(folder);
     x = D.x; y = D.y;
@@ -308,6 +330,8 @@ for iter = 1:nIter
 %     v(isnan(v)) = 0;
     
     [x_crop,y_crop,u_crop,v_crop,vort_crop] = cropFields(xRange,yRange,x,y,u,v,vort);
+    x_crop = x_crop - x_crop(1);
+    y_crop = y_crop - y_crop(1);
     
     %% Streamwise Velocity Field
     targetFolder = fullfile(plotDir, "flowfields", "u_timeres", sprintf('ms%.4d', iter));
@@ -315,16 +339,29 @@ for iter = 1:nIter
     figure(507)
     for iFrame = 1:nPlotFrames
         fname = fullfile(targetFolder, "u_" + mpt2str(iFrame) + ".png");
-        toplot = u_crop(:,:,iFrame);
-        limits = [mean(u_crop(:))-2*std(u_crop(:)) mean(u_crop(:))+2*std(u_crop(:))];
+
+        toplot = u_crop(:,:,iFrame) / mean(u_crop(:));
+        limits = [mean(u_crop(:))-2*std(u_crop(:)) mean(u_crop(:))+2*std(u_crop(:))] / mean(u_crop(:));
         nLevel = 100;
-        [C,h] = contourf(x_crop, y_crop, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        [C,h] = contourf(x_crop/L/2, y_crop/L/2, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
-        colormap('jet')
-        a=colorbar;
-        a.Label.String = 'u';
-        clim(limits)
+        axis equal;
+        colormap('jet');
+        clim(limits);
+        hcb=colorbar;
+        hcb.Label.Interpreter = 'latex';
+        hcb.Label.String = '$$U / \bar{U}$$';
+        hcb.FontSize = 14; % Set the font size of the tick labels
+    %     clim([0.90 1.10]);
+%         set(hcb,'YTick',0.96:0.02:1.04);
+        hcb.Label.FontSize = 14; % Set desired font size
+        xlabelg('$$x/L$$'); ylabelg('$$y/L$$'); 
+        ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
+        xticks(0:1:4); yticks(0:1:4);
+        set(gcf, 'Color', 'white')
+
         export_fig(fname, '-png', '-opengl','-r600');
+        pause(0.1)
     end
 
     %% Crossstream Velocity Field
@@ -393,12 +430,38 @@ cd(currentDir) % go back to original directory
 end
 
 
-%% Optimization convergence
-plotConvergence(J)
+%% Optimization convergence over iterations
+plotConvergence(J);
+ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
+% ylim([0 0.2]); 
+% yticks(0:0.05:0.3) % Case 3
+% yticks(0:0.2:1.0) % Case 7
+% legend('Location', 'northwest')
+fname = fullfile(plotDir, 'X_VS_Iterations', 'fitness.svg');
+set(gcf, 'Color', 'white')
+export_fig(fname, '-transparent', '-svg');
 
 
-%%
+%% TI metric over iterations
 plotTargetMetric(TI_mean, 0.2, 5)
+ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
+xlabelg('Iteration'); ylabelg('$$TI$$');
+ylim([0 0.35]);
+yticks(0:0.1:0.4);
+fname = fullfile(plotDir, 'X_VS_Iterations', 'TIMetric.svg');
+set(gcf, 'Color', 'white')
+export_fig(fname, '-transparent', '-svg');
+
+
+%% TI gradient metric over iterations
+plotTargetMetric(dTIdy_mean, dTIdy_target, 5)
+ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
+% ylim([0 0.35]);
+% yticks(0:0.1:0.4);
+ylabelg('$$dTI / dy \; [m^{-1}]$$');
+fname = fullfile(plotDir, 'X_VS_Iterations', 'dTIdy_metric.svg');
+set(gcf, 'Color', 'white');
+export_fig(fname, '-transparent', '-svg');
 
 
 %% Display best / worst
@@ -419,29 +482,41 @@ yRangeArray = linspace(0,yRange(2)-yRange(1),length(mean(optResults(1).fields.U,
 yMinToMax = [yRangeArray(1), yRangeArray(end)];
 yHeight = yRange(2)-yRange(1);
 
-
+% for casei = [23,14,20,28,33] % For homogenous, isotropic (opt 3)
+casei = ibest;
 % U
-U_mean = mean(optResults(ibest).fields.U,'all');
-toplot = mean(optResults(ibest).fields.U,2) / U_mean;
+U_mean = mean(optResults(casei).fields.U,'all');
+toplot = mean(optResults(casei).fields.U,2) / U_mean;
 figure(); hold on;
 plot(yMinToMax, mean(toplot)*ones(2,1), "LineWidth", 1, 'Color', 'black');
 plot(yRangeArray, toplot, "LineWidth", 2, 'Color', defaultOrange);
-xlabelg("$$y / L$$"); ylabelg("$$U / U_\infty$$");
-xlim(yMinToMax)
+xlabelg("$$y / L$$"); ylabelg("$$U / \bar{U}$$");
+xlim(yMinToMax);
+% ylim([0.8 1.2]);
 box on
 ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
-
+% title(ibest)
+fname = fullfile(plotDir, 'distributions', 'U_mean', [sprintf('U_mean_%.4d_zoom.svg', casei)]);
+set(gcf, 'Color', 'white')
+export_fig(fname, '-transparent', '-svg');
 
 % TI
-toplot = mean(optResults(ibest).fields.TI,2);
+toplot = mean(optResults(casei).fields.TI,2);
 figure(); hold on;
-plot(yMinToMax, mean(toplot)*ones(2,1), "LineWidth", 1, 'Color', lightOrange);
-% plot(yMinToMax, TI_target*ones(2,1), "LineWidth", 1, 'Color', 'black');
 plot(yRangeArray, toplot, "LineWidth", 2, 'Color', defaultOrange);
+% plot(yMinToMax, TI_target*ones(2,1), "LineWidth", 1, 'Color', 'black');
+plot(yMinToMax, mean(toplot)*ones(2,1), '--', "LineWidth", 1, 'Color', lightOrange);
 xlabelg("$$y / L$$"); ylabelg("$$TI$$");
-xlim(yMinToMax)
+xlim(yMinToMax);
+% ylim([0 0.35]); yticks(0:0.1:0.4);
 box on
 ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
+% title(ibest)
+fname = fullfile(plotDir, 'distributions', 'TI_mean', [sprintf('TI_mean_%.4d_zoom.svg', casei)]);
+set(gcf, 'Color', 'white')
+export_fig(fname, '-transparent', '-svg');
+
+% end
 
 switch optID
     case 6
@@ -472,6 +547,24 @@ switch optID
         box on
         ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
 
+        % NEW du_dy
+        U_mean = mean(optResults(casei).fields.U,'all');
+        toplot = mean(optResults(casei).fields.U,2) / U_mean;
+        dUdy_mean = mean(optResults(ibest).fields.dUdy,'all');
+        dUdy_Delta = dUdy_mean*yHeight/2 / U_mean;
+        figure(); hold on;
+        plot(yRangeArray, toplot, "LineWidth", 2, 'Color', defaultOrange);
+        plot(yMinToMax, [mean(toplot)-dUdy_Delta, mean(toplot)+dUdy_Delta], '--', "LineWidth", 1, 'Color', lightOrange);
+        xlabelg("$$y / L$$"); ylabelg("$$U / \bar{U}$$");
+        xlim(yMinToMax);
+        ylim([0.8 1.2]);
+        box on
+        ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
+        % title(ibest)
+        fname = fullfile(plotDir, 'distributions', 'U_mean', [sprintf('U_mean_%.4d.svg', casei)]);
+        set(gcf, 'Color', 'white')
+        export_fig(fname, '-transparent', '-svg');
+
         % TI
         toplot = mean(optResults(ibest).fields.TI,2);
         dTIdy_mean = mean(optResults(ibest).fields.dTIdy,'all');
@@ -482,6 +575,39 @@ switch optID
         % plot([0 yHeight], mean(toplot)*ones(2,1));
         plot(yMinToMax, [mean(toplot)-dTIdy_Delta, mean(toplot)+dTIdy_Delta]);
         xlabelg("$$y [m]$$"); ylabelg("$$TI$$");
+
+        % dTI_dy
+        toplot = mean(optResults(ibest).fields.dTIdy,2);
+        figure(); hold on;
+        plot(yRangeArray, toplot, "LineWidth", 2, 'Color', defaultOrange);
+        plot(yMinToMax, mean(toplot)*ones(2,1), "LineWidth", 1, 'Color', lightOrange);
+        % plot(yMinToMax, -0.2*ones(2,1), 'Color', 'black');
+        xlabelg("$$y / L$$"); ylabelg("$$dTI/dy$$");
+        xlim(yMinToMax)
+        box on;
+        ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
+
+        case 7
+
+        % TI
+        toplot = mean(optResults(casei).fields.TI,2);
+        dTIdy_mean = mean(optResults(ibest).fields.dTIdy,'all');
+        dTIdy_Delta = dTIdy_mean*yHeight/2;
+
+        figure(); hold on;
+        plot(yRangeArray, toplot, "LineWidth", 2, 'Color', defaultOrange);
+%         plot(yMinToMax, TI_target*ones(2,1), "LineWidth", 1, 'Color', 'black');
+%         plot(yMinToMax, mean(toplot)*ones(2,1), '--', "LineWidth", 1, 'Color', lightOrange);
+        plot(yMinToMax, [mean(toplot)-dTIdy_Delta, mean(toplot)+dTIdy_Delta], '--', "LineWidth", 1, 'Color', lightOrange);
+        xlabelg("$$y / L$$"); ylabelg("$$TI$$");
+        xlim(yMinToMax);
+        ylim([0 0.35]); yticks(0:0.1:0.4);
+        box on
+        ax = gca; ax.XAxis.FontSize = 14; ax.YAxis.FontSize = 14;
+        % title(ibest)
+        fname = fullfile(plotDir, 'distributions', 'TI_mean', [sprintf('dTIdy_%.4d.svg', casei)]);
+        set(gcf, 'Color', 'white')
+        export_fig(fname, '-transparent', '-svg');
 
         % dTI_dy
         toplot = mean(optResults(ibest).fields.dTIdy,2);

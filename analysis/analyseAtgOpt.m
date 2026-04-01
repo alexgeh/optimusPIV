@@ -147,13 +147,14 @@ heatmap(allNames, allNames, Rp, ...
     'Colormap', uColorMapClose, 'ColorLimits',[-1 1], ...
     'CellLabelColor','none');
 title('Pearson Correlations (inputs + outputs)');
+set(gca,"TickLabelInterpreter",'latex');
 
 figure('Name','Spearman Correlation Matrix','Color','w');
 heatmap(allNames, allNames, Rs, ...
     'Colormap', parula, 'ColorLimits',[-1 1], ...
     'CellLabelColor','none');
 title('Spearman Correlations (inputs + outputs)');
-
+set(gca,"TickLabelInterpreter",'latex');
 
 
 

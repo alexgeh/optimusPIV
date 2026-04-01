@@ -21,10 +21,13 @@ Nframes = 2500;    % Total number of PIV frames to read
 % operational parameter (approx)
 params.U = 1;
 params.L = 1;
+
+L = 0.087 / 2;
+
 % we f
 % figure out the normalization later
 
-for Case = 4%[1 2 3 4];
+for Case = 3%[1 2 3 4];
 
     if Case == 5
         % Case 5 is different
@@ -41,7 +44,7 @@ for Case = 4%[1 2 3 4];
 
     %% Read data - KB version returns a structure - MUCH easier to deal with
     % D is a huge data structure with everything
-    D = loadpivKB1(folderPIV,params,'Validate', 0.4, ...
+    D = loadpivKB1(folderPIV,params,'Validate', 0.2, ...
         'nondim', 'frameRange',1:Nframes, "extractAllVariables");
     [Ny, Nx] = size(D.u(:,:,1));
 
@@ -327,22 +330,233 @@ for Case = 4%[1 2 3 4];
 
     %% Make movies - edit as necessary
     if PLOT_MOVIES
-        figure('Position', [100 100 550 500]);
+        figure('Position', [100 100 550 500], 'Color', 'w');
         vidfile = VideoWriter(sprintf('uvel_%d.mp4', Case),'MPEG-4');
+        vidfile.FrameRate = 20;  % Set the frame rate
         open(vidfile);
         for i = 1:Nframes_movie
-            pcolor(X, Y, D.u(:,:,i));
+            pcolor(X/L/2, Y/L/2, D.u(:,:,i));
+            axis equal;
             shading('interp');
             colormap(slanCM('jet'));
+%             colormap(slanCM('viridis'));
             clim([1-3*u_rms_all  1+3*u_rms_all]);
-            c = colorbar;
-            c.Label.String = 'u/U';
-            xlabel('x [m]')
-            ylabel('y [m]')
-            set(gca, 'FontSize', 14)
+            hcb=colorbar;
+            hcb.Label.Interpreter = 'latex';
+            hcb.Label.String = '$$u / \bar{U}$$';
+            hcb.FontSize = 14; % Set the font size of the tick labels
+        %     clim([0.90 1.10]);
+            set(hcb,'YTick',0.6:0.2:1.4);
+            hcb.Label.FontSize = 14; % Set desired font size
+            xlabelg('$$x/L$$'); ylabelg('$$y/L$$');
+            set(gca, 'FontSize', 14);
+            yticks(0:1:3);
+
             writeVideo(vidfile, getframe(gcf));
         end
         close(vidfile)
+
+
+        %% Fancy vid with NaN Interpolation and no border
+        figure('Position', [100 100 550 500], 'Color', 'none');  % Set figure background to transparent
+        vidfile = VideoWriter(sprintf('uvel_fancy_%d.mp4', Case), 'MPEG-4');
+        vidfile.FrameRate = 20;  % Set the frame rate
+        open(vidfile);
+        
+        for i = 1:Nframes_movie
+            % Extract the current velocity data (u-velocity)
+            u_vel = D.u(:,:,i);
+        
+            % Interpolate NaN values using 'linear' interpolation along rows or columns
+            u_vel_interp = fillmissing(u_vel, 'linear', 2);  % 2 means interpolation along columns (y-axis)
+        
+            % Plot the interpolated u-velocity data
+            pcolor(X/L/2, Y/L/2, u_vel_interp);
+            axis equal;
+            shading('interp');  % Smooth out color transitions
+            
+            % Apply colormap and adjust color limits (for the velocity range)
+            colormap(slanCM('viridis'));
+            clim([1-3*u_rms_all 1+3*u_rms_all]);  % Adjust the color limits based on the velocity range
+            
+            % Turn off the axis to keep the plot neat
+            axis off;
+            axis tight;  % Tighten the axis to fit the data as closely as possible
+            ylim([0.05 2.95])
+        
+            % Adjust figure properties to remove borders
+            set(gca, 'LooseInset', get(gca, 'TightInset'))  % Remove extra whitespace around the plot
+            
+            % Write the current frame to the video
+            writeVideo(vidfile, getframe(gcf));
+        end
+        close(vidfile);
+
+
+        %% Fancy vid with slow-motion effect (frame interpolation)
+        figure('Position', [100 100 550 500], 'Color', 'none');  % Set figure background to transparent
+        vidfile = VideoWriter(sprintf('uvel_slowmotion_%d.mp4', Case), 'MPEG-4');
+        vidfile.FrameRate = 30;  % Set the target frame rate
+        open(vidfile);
+        
+        for i = 1:Nframes_movie-1
+            % Extract the current and next velocity data (u-velocity)
+            u_vel_current = D.u(:,:,i);
+            u_vel_next = D.u(:,:,i+1);
+        
+            % Interpolate NaN values in both frames using 'linear' interpolation (or 'spline', 'cubic', etc.)
+            u_vel_current_interp = fillmissing(u_vel_current, 'linear', 2); 
+            u_vel_next_interp = fillmissing(u_vel_next, 'linear', 2);
+        
+            % Create interpolated frames between current and next using cubic interpolation
+            for j = 0:1  % Interpolating halfway between each frame
+                alpha = j;  % alpha = 0 corresponds to the current frame, alpha = 1 corresponds to the next frame
+                
+                % Interpolate the velocity field between current and next frame
+                u_vel_interp = (1 - alpha) * u_vel_current_interp + alpha * u_vel_next_interp;
+        
+                % Plot the interpolated u-velocity data
+                pcolor(X/L/2, Y/L/2, u_vel_interp);
+                axis equal;
+                shading('interp');  % Smooth out color transitions
+                
+                % Apply colormap and adjust color limits (for the velocity range)
+                colormap(slanCM('viridis'));
+                clim([1-3*u_rms_all 1+3*u_rms_all]);  % Adjust the color limits based on the velocity range
+                
+                % Turn off the axis to keep the plot neat
+                axis off;
+                axis tight;  % Tighten the axis to fit the data as closely as possible
+                ylim([0.05 2.95])
+        
+                % Adjust figure properties to remove borders
+%                 set(gca, 'LooseInset', get(gca, 'TightInset'))  % Remove extra whitespace around the plot
+                
+                % Write the interpolated frame to the video
+                writeVideo(vidfile, getframe(gcf));
+            end
+        end
+        close(vidfile);
+
+
+        %% Fancy vid with NaN Interpolation and no border, export frames as PNG
+        output_dir = 'C:\Users\agehrke\Desktop\TEMP\APS_PLOTS\fancy_vids\cover_vid_plasma\';  % Specify the directory to save the images
+        if ~exist(output_dir, 'dir')
+            mkdir(output_dir);  % Create directory if it doesn't exist
+        end
+
+        limits = [1-2.5*u_rms_all 1+2.5*u_rms_all];
+        nLevel = 60;
+        
+        figure('Position', [100 100 550 500], 'Color', 'none');  % Set figure background to transparent
+        
+        for i = Nframes_movie+1:2*Nframes_movie
+            % Extract the current velocity data (u-velocity)
+            u_vel = D.u(:,:,i);
+        
+            % Interpolate NaN values using 'linear' interpolation along rows or columns
+            u_vel_interp = fillmissing(u_vel, 'linear', 2);  % 2 means interpolation along columns (y-axis)
+        
+            % Plot the interpolated u-velocity data
+%             pcolor(X/L/2, Y/L/2, u_vel_interp);
+            [C,h] = contourf(X/L/2, Y/L/2, u_vel_interp, [nanmin2(u_vel_interp),linspace(limits(1),limits(2),nLevel),nanmax2(u_vel_interp)]);
+            set(h,'linestyle','none')
+            axis equal;
+            shading('interp');  % Smooth out color transitions
+            
+            % Apply colormap and adjust color limits (for the velocity range)
+            colormap(slanCM('plasma'));
+%             colormap(slanCM('viridis'));
+            clim(limits);  % Adjust the color limits based on the velocity range
+            
+            % Turn off the axis to keep the plot neat
+            axis off;
+%             axis tight;  % Tighten the axis to fit the data as closely as possible
+            ylim([0.05 2.95]);  % Adjust y-limits as per your data range
+            set(gca,'ytick',[],'xtick',[])
+            set(gca,'yticklabels',{},'xticklabels',{})
+        
+            % Adjust figure properties to remove borders
+%             set(gca, 'LooseInset', get(gca, 'TightInset'))  % Remove extra whitespace around the plot
+        
+            % Generate the filename for the PNG image
+            image_filename = sprintf('%s/frame_%04d.png', output_dir, i);
+        
+            % Export the figure as a high-resolution PNG (300 dpi)
+%             print(gcf, image_filename, '-dpng', '-r300');  % '-r300' sets 300 dpi
+            export_fig(image_filename, '-png', '-opengl','-r600');
+        end
+
+
+
+        %% Fancy vid with NaN Interpolation and temporal interpolation
+        output_dir = 'C:\Users\agehrke\Desktop\TEMP\APS_PLOTS\fancy_vids\cover_vid_plasma_interp\';
+        if ~exist(output_dir, 'dir')
+            mkdir(output_dir);
+        end
+        
+        limits = [1-2.5*u_rms_all 1+2.5*u_rms_all];
+        nLevel = 60;
+        
+        nInterp = 2;   % <<< Number of interpolated frames between i and i+1
+        
+        figure('Position', [100 100 550 500], 'Color', 'none');
+        
+        frameID = 1;   % running output frame counter
+        
+        for i = 1 : 2*Nframes_movie-1
+        
+            % --- Get original frames ------------------------------------------
+            uA = D.u(:,:,i);
+            uB = D.u(:,:,i+1);
+        
+            % Fill NaNs spatially
+            uA = fillmissing(uA,'linear',2);
+            uB = fillmissing(uB,'linear',2);
+        
+            % --- Temporal interpolation ----------------------------------------
+            % stack as time series
+            uStack = cat(3, uA, uB);
+        
+            % times: t=0 (frame i), t=1 (frame i+1)
+            tCoarse = [0 1];
+            tFine = linspace(0,1,nInterp+2);  % includes 0 and 1
+        
+            % For each pixel, PCHIP in time:
+            uInterp = zeros([size(uA), numel(tFine)]);
+            for ii = 1:size(uA,1)
+                for jj = 1:size(uA,2)
+                    uInterp(ii,jj,:) = pchip(tCoarse, squeeze(uStack(ii,jj,:)), tFine);
+                end
+            end
+        
+            % --- Plot original + interpolated frames ---------------------------
+            for k = 1:numel(tFine)
+                uFrame = uInterp(:,:,k);
+        
+                [C, h] = contourf(X/L/2, Y/L/2, uFrame, ...
+                    [nanmin2(uFrame), linspace(limits(1),limits(2),nLevel), nanmax2(uFrame)]);
+                set(h,'linestyle','none')
+                axis equal;
+                shading interp;
+        
+                colormap(slanCM('plasma'));
+                clim(limits);
+        
+                axis off;
+                ylim([0.05 2.95]);
+                set(gca,'ytick',[],'xtick',[])
+                set(gca,'yticklabels',{},'xticklabels',{})
+        
+                % Save frame
+                image_filename = sprintf('%s/frame_%06d.png', output_dir, frameID);
+                export_fig(image_filename, '-png', '-opengl', '-r900');
+        
+                frameID = frameID + 1;
+            end
+        end
+
+        
 
         %% Vorticity movie
         figure('Position', [100 100 550 500]);

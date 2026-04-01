@@ -5,7 +5,7 @@ function plotTargetMetric(metric, target, tolPercent)
 %
 %   Inputs:
 %       metric      : Vector of metric values (size [nIterations x 1])
-%       target      : Target value for the metric
+%       target      : Target value for the metric (positive or negative)
 %       tolPercent  : Tolerance range in percent (e.g., 5 for ±5%)
 %
 %   This function plots all metric values over iterations, highlights
@@ -17,8 +17,8 @@ function plotTargetMetric(metric, target, tolPercent)
     nIter = numel(metric);
     iter = 1:nIter;
 
-    % Compute tolerance band
-    tolAbs = target * tolPercent / 100;
+    % Compute tolerance band (use absolute target to handle negative values)
+    tolAbs = abs(target) * tolPercent / 100;
     lowerBound = target - tolAbs;
     upperBound = target + tolAbs;
 
@@ -26,7 +26,8 @@ function plotTargetMetric(metric, target, tolPercent)
     inRange = metric >= lowerBound & metric <= upperBound;
 
     % Prepare figure
-    figure; hold on; grid on; box on;
+    figure; hold on;
+    box on;
 
     % Plot all points
     plot(iter, metric, 'o', ...
@@ -42,16 +43,8 @@ function plotTargetMetric(metric, target, tolPercent)
     yline(upperBound, '--', 'Color', [0.6 0.6 0.6]);
     yline(lowerBound, '--', 'Color', [0.6 0.6 0.6]);
 
-%     yline(target, '-', sprintf('Target = %.3g', target), ...
-%         'Color', [0 0.45 0.74], 'LineWidth', 1.5);
-%     yline(upperBound, '--', sprintf('+%.1f%%', tolPercent), ...
-%         'Color', [0.6 0.6 0.6]);
-%     yline(lowerBound, '--', sprintf('-%.1f%%', tolPercent), ...
-%         'Color', [0.6 0.6 0.6]);
-
     xlabelg('Iteration');
-    ylabelg('Target value');
-    title(sprintf('Metric vs. Iteration (Target = %.3g ±%.1f%%)', ...
-        target, tolPercent));
-    legend('All points', 'Within target range', 'Location', 'best');
+    ylabelg('Metric value');
+    lgd = legend('All points', sprintf('Points within ±%g%%', tolPercent), 'Location', 'best');
+    fontsize(lgd,12,'points')
 end
