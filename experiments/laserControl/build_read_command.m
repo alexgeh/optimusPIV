@@ -16,7 +16,7 @@ function cmd = build_read_command(addr, cmdCode)
     cs_lo = bitand(checksum, 255);      % lower byte
 
     % Final frame: payload + checksum + CR
-    frame = [payload, cs_hi, cs_lo, 13];
+    frame = [payload, cs_hi, cs_lo];
 
     % Convert to HEX ASCII characters (e.g. [01] -> '01')
     cmd = upper(join(string(dec2hex(frame, 2)), ""));

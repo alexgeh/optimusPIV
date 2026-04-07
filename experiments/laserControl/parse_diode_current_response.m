@@ -2,6 +2,7 @@ function amps = parse_diode_current_response(response)
 %PARSE_DIODE_CURRENT_RESPONSE Extracts current in Amps from a HEXASC response
 
     % Each byte is 2 hex chars
+    response = char(response);
     bytes = hex2dec(reshape(response, 2, []).');
 
     % Validate RW code (should be 0x03)
@@ -18,4 +19,7 @@ function amps = parse_diode_current_response(response)
     % Diode current is D#1 and D#2
     current_raw = bitor(bitshift(bytes(5), 8), bytes(6));
     amps = current_raw / 100;  % 0.01 A units
+
+    fprintf('Current:%f\n', amps);
+
 end

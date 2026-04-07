@@ -1,16 +1,20 @@
-function response = query_dm40(laser, addr, cmdCode)
-%QUERY_DM40 Sends a read command and reads the HEXASC response
+function response = query_dm40(laser, addr, cmdCode, dataByte)
+%QUERY_DM40 Sends a read or write command depending on dataByte presence.
+% If dataByte is provided, sends a WRITE command.
+% Otherwise, sends a READ command.
+% Returns raw HEXASC response from the device.
 
-    % Build the command
-    cmdStr = build_read_command(addr, cmdCode);
+    if nargin < 4
+        % Read
+        cmdStr = build_command(addr, cmdCode);
+    else
+        % Write
+        cmdStr = build_command(addr, cmdCode, dataByte);
+    end
 
-    % Add CR (0x0D)
-    cmdStr(end+1) = char(13);
+    writeline(laser, cmdStr);
+    pause(0.1);  % adjust as needed
 
-    % Send
-    write(laser, cmdStr, "string");
-
-    % Read until carriage return
-    raw = readline(laser);  % waits until CR (0x0D)
-    response = raw;  % return as raw hex string
+    response = readline(laser);
 end
+
