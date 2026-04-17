@@ -1,3 +1,5 @@
+%% Small test script to test BNC pulse generator
+
 clear;
 
 para = getOptPivPara(file);

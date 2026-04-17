@@ -10,7 +10,7 @@ wH2 = 0.01;  % weight for turbulence intensity homogeneity
 wH3 = 0.28;  % weight for homogeneity of turbulence intensity coefficient of variation
 wA  = 0.1;  % weight for anisotropy
 
-D = loadpiv(PIVfolder);
+D = loadpiv(PIVfolder, 'verbose',false);
 x = D.x; y = D.y;
 u = D.u; v = D.v;
 % vort = D.vort;
@@ -23,14 +23,19 @@ v(isnan(v)) = 0;
 % yRange = [-0.078 0.1396];
 % xRange = [-0.1445 0.0667]; % Was required for 20251017_ATG_bayes_opt_3 - cam1
 % yRange = [-0.0650 0.1396];
-xRange = [-0.18 0.0642]; 
-yRange = [-0.111 0.137];
+% xRange = [-0.18 0.0642]; 
+% yRange = [-0.111 0.137];
+
+currentXRange = [min(x,[],'all') max(x,[],'all')];
+currentYRange = [min(y,[],'all') max(y,[],'all')];
+width = diff(currentXRange);
+height = diff(currentYRange);
+
+relCut = 0.05;
+xRange = [currentXRange(1)+relCut*width currentXRange(2)-relCut*width]; 
+yRange = [currentYRange(1)+relCut*height currentYRange(2)-relCut*height];
 
 [x_crop,y_crop,u_crop,v_crop] = cropFields(xRange,yRange,x,y,u,v);
-% x_crop = x;
-% y_crop = y;
-% u_crop = u;
-% v_crop = v;
 
 [metrics, fields] = turbulenceMetrics(u_crop,v_crop,x_crop,y_crop,doPlot); % Calculate turbulence intensity metrics
 

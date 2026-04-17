@@ -1,0 +1,7 @@
+[✓] Pulse Generator - BNC
+[✓] Camera - Photron FASTCAM
+[✓] Laser - Photronix
+[✓] ATG - Teknik Controller
+[✓] Seeding Valve Control - Arduino
+
+[✓] Export Davis project including the processing file (LVS file)

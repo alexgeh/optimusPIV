@@ -1,4 +1,4 @@
-function J = atgOpt_objFcn(freq, alpha, relBeta)
+function J = atgOpt_objFcn_synchr(freq, alpha, relBeta)
 %% Objective function for the active turbulence grid (ATG) flow field
 %  optimization
 %#ok<*GVMIS>
@@ -10,6 +10,7 @@ function J = atgOpt_objFcn(freq, alpha, relBeta)
 % end
 
 global bnc
+global laserControl
 global valveArduino
 global lastSeedingTime
 global optPIV_settings
@@ -30,13 +31,23 @@ if elapsedTime > 15
     closeSolenoidValve(valveArduino);
     lastSeedingTime = tic;
     pause(30) % circulation of particles
-    disp("seeding complete, continuWing experiments")
+    disp("seeding complete, continuing with experiments")
 end
 
 
 %% Arm the system
 bnc_arm(bnc);
 pause(0.5)
+
+
+%% Ramp up laser:
+targetHeads = 'both'; 
+targetAmps  = 'max';
+
+% disp('Initializing laser ramp up procedure:')
+laserControl.openShutter(targetHeads);
+laserControl.turnOnDiode(targetHeads);
+laserControl.setCurrent(targetAmps, targetHeads);
 
 
 %% Trigger if using software mode
@@ -50,10 +61,15 @@ disp("ATG Run - freq: " + num2str(freq) + "; ampl: " + num2str(ampl) + "; offset
 
 runAtgSync_optPIV(freq, ampl, offset);
 
+% disp('Ramping down laser:')
+laserControl.shutdown(targetHeads)
+pause(0.5)
+
 
 %% Transfer raw PIV to processing directory
 waitForDownloadCycle(config.log_path, 60);
 transfer_files(config.raw_PIV_dir, config.davis_templ_mraw, recIdx, "mraw");
+pause(1)
 
 
 %% Process PIV

@@ -1,33 +1,36 @@
 function waitForDownloadCycle(logPath, timeoutSec)
-    % Waits until the log status becomes 'downloading' and then changes to something else.
-    % Throws error if it takes longer than timeoutSec.
+    % Waits until the C++ program has fully saved the target recording index.
+    % Utilizes the absolute 'n_recorded' count rather than transient states.
+    
+    global recIdx;
+    
+    % Fallback if recIdx isn't initialized yet
+    if isempty(recIdx)
+        recIdx = 1; 
+    end
 
-    fprintf("Waiting for download to begin...\n");
+    fprintf('Waiting for recording cycle %d to complete...\n', recIdx);
     tStart = tic;
-    hasEnteredDownloading = false;
 
     while toc(tStart) < timeoutSec
         try
             txt = fileread(logPath);
             log = jsondecode(txt);
 
-            if isfield(log, "status")
-                if strcmp(log.status, "downloading")
-                    if ~hasEnteredDownloading
-                        fprintf("Download started...\n");
-                        hasEnteredDownloading = true;
-                    end
-                elseif hasEnteredDownloading
-                    fprintf("Download finished.\n");
-                    return;  % Finished waiting once it changes from 'downloading'
-                end
+            % Check if the absolute number of completed recordings meets our target
+            if isfield(log, 'n_recorded') && log.n_recorded >= recIdx
+                fprintf('Download and save for cycle %d finished.\n', recIdx);
+                return;  % Exit the wait loop successfully
             end
+            
         catch ME
-            warning("Error reading log: %s", ME.message);
+            % This catch block is vital, as C++ might be mid-write 
+            % (file lock/empty file) when MATLAB attempts to read it.
+            % We suppress the warning to avoid console spam during a collision.
         end
+        
         pause(0.5);
     end
 
-    warning("Timeout waiting for download cycle to complete.");
+    error('Timeout waiting for download cycle %d to complete.', recIdx);
 end
-

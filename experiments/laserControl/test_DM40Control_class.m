@@ -1,10 +1,39 @@
 %% DM40 Full Laser Ramp Cycle & Safety Test
 clear; clc;
 
-% 1. Connect to Laser 
-% (This automatically queries 0x0F and Syncs State internally!)
-laser = DM40Control('COM9'); 
-laser.printStatus();
+audioplayer([sin(1:.6:400), sin(1:.7:400), sin(1:.4:400)], 22050); % Audio queue for laser boot up
+disp('CONNECTION TO LASER WILL BE INITIALIZED')
+disp(' ')
+disp('FULL LASER SAFETY REQUIRED TO CONTINUE')
+disp(' ')
+disp('!!! DOORS CLOSED - GOGGLES ON - NO JEWELRY ON ARMS AND HANDS !!!')
+disp(' ')
+disp('WHEN YOU CONTINUE THE LASER WILL BE ARMED TO FULL POWER AND START TO FIRE AS EXPERIMENTS ARE BEING CONDUCTED. USE EXTREME CAUTION!')
+disp(' ')
+response = input('HAVE YOU FOLLOWED ALL THE LASER SAFETY CHECKLIST AND ARE READY TO CONTINUE? (YES/NO): ', 's');
+disp('')
+
+% Use strcmpi for case-insensitive comparison
+if strcmpi(response, 'YES')
+    disp('LASER COMING ONLINE IN')
+    disp('3')
+    play(Audio); pause(1);
+    disp('2')
+    play(Audio); pause(1);
+    disp('1')
+    play(Audio); pause(1);
+
+    % 1. Connect to Laser
+    % (This automatically queries 0x0F and Syncs State internally!)
+    laser = DM40Control('COM9');
+    laser.printStatus();
+
+    disp('LASER CONNECTION ESTABLISHED - LASER CAN FIRE AT ANY MOMENT WITHOUT WARNING')
+else
+    error('LASER CONNECTION ABORTED BY USER.');
+end
+
+
 
 %%
 try
