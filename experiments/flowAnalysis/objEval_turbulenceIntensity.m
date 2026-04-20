@@ -10,6 +10,8 @@ wH2 = 0.01;  % weight for turbulence intensity homogeneity
 wH3 = 0.28;  % weight for homogeneity of turbulence intensity coefficient of variation
 wA  = 0.1;  % weight for anisotropy
 
+relCut = 0.05; % Flow field is truncated by this portion to avoid edge effects
+
 D = loadpiv(PIVfolder, 'verbose',false);
 x = D.x; y = D.y;
 u = D.u; v = D.v;
@@ -31,7 +33,6 @@ currentYRange = [min(y,[],'all') max(y,[],'all')];
 width = diff(currentXRange);
 height = diff(currentYRange);
 
-relCut = 0.05;
 xRange = [currentXRange(1)+relCut*width currentXRange(2)-relCut*width]; 
 yRange = [currentYRange(1)+relCut*height currentYRange(2)-relCut*height];
 

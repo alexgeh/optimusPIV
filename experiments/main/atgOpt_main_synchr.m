@@ -4,6 +4,7 @@
 %  Updated: 20260417 - Alexander Gehrke
 %
 %#ok<*GVMIS>
+%#ok<*UNRCH>
 
 clear
 clear global bnc laserControl valveArduino triggerDelay optPIV_settings recIdx optResults
@@ -142,13 +143,17 @@ return
 
 
 %% Set up optimization
-
+% frequencyRange = [0.5, 8];
+alphaRange = [0, 59.5];
+relBetaRange = [0, 1];
 % Define the optimization variables
 vars = [
+    % LISBON RUN PARAMETERS:
     % optimizableVariable('frequency', [7, 8])
-    optimizableVariable('alpha', [0, 59.5])
-    optimizableVariable('relBeta', [0, 1])
-    % optimizableVariable('frequency', [0.5, 8]) % DFD RUN PARAMETERS
+    optimizableVariable('alpha', alphaRange)
+    optimizableVariable('relBeta', relBetaRange)
+    % DFD RUN PARAMETERS:
+    % optimizableVariable('frequency', frequencyRange)
     % optimizableVariable('alpha', [0, 59.5])
     % optimizableVariable('relBeta', [0, 1])
 ];
