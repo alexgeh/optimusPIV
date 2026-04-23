@@ -1,48 +1,36 @@
 %% Main script - Launches the entire optimusPIV thing
 %
 %  Author: Alexander Gehrke - 20250605
-%  Updated: 20260417 - Alexander Gehrke
+%  Updated: 20260420 - Alexander Gehrke
 %
 %#ok<*GVMIS>
 %#ok<*UNRCH>
 
 clear
-clear global bnc laserControl valveArduino triggerDelay optPIV_settings recIdx optResults
-clear bnc laserControl
+clear global lastSeedingTime recIdx optResults
 
-global bnc
-global laserControl
-global valveArduino
+% Keep mutable states global so bayesopt iterations can update them
 global lastSeedingTime
-global optPIV_settings
 global recIdx
 global optResults
 
 optResults = [];
 recIdx = 1;
 
-verbose = true;
-ext_trigger = false;
-plotting = true;
-skipCycles = 5;
-
-
 %% Configure experiment and write config file
-root_dir = "C:\PIV_SANDBOX\20260417_ATG_highFreq_opt_1\";
+root_dir = "C:\PIV_SANDBOX\20260423_ATG_highFreq_opt_4\";
 davis_exe = "C:\DaVis\win64\DaVis.exe";
 camera_exe = "C:\Users\agehrke\Downloads\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe";
 
-% This needs to be the project containing the most recent calibration and
-% LVS files and include a dummy/template case:
 davis_project_source = "C:\PIV_SANDBOX\davis_project_source_lisbon\";
 
 % Experimental PIV parameters
 eset = struct( ...
-    'acquisition_freq_Hz', 50, ...
+    'acquisition_freq_Hz', 53, ...
     'delta_t_us', 180, ...
     'pulse_width_us', 5, ...
-    'nDoubleFrames', 220, ... % Single frames: Double this number
-    'ext_trigger', ext_trigger ...
+    'nDoubleFrames', 410, ... 
+    'ext_trigger', false ...
 );
 
 % Communication parameters
@@ -54,35 +42,48 @@ cset = struct( ...
     'camTwo_connection', "192.168.1.10" ...
 );
 
+% Evaluation parameters
+evset = struct( ...
+    'targetTI', 0.15, ...
+    'doPlot', true, ...
+    'wTI', 0.6, ...
+    'wH1', 0.01, ...
+    'wH2', 0.01, ...
+    'wH3', 0.28, ...
+    'wA', 0.1, ...
+    'relCut', 0.05 ...
+);
+
+% Optimization parameters
+oset = struct( ...
+    'alphaRange', [0, 59.5], ...
+    'relBetaRange', [0, 1], ...
+    'theta_min', 30, ...
+    'skipCycles', 5, ...
+    'plotting', true ...
+);
+
 % Create parameter file:
-configFile = write_experiment_config(root_dir, eset, cset, davis_exe, davis_project_source, ...
-    "verbose", verbose, ...
+configFile = write_experiment_config(root_dir, eset, cset, evset, oset, davis_exe, davis_project_source, ...
+    "verbose", true, ...
     "davis_proj_name", "optimusPivLisbon", ... 
     "camera_index", 1, ...                 
-    "davis_lvs_name", "twoDimGPU_200");
+    "davis_lvs_name", "twoDimGPU_400");
 
 
 %% Read config (for confirmation)
 config = read_experiment_config(configFile, false);
 
-root_dir = config.root_dir;
-eset = config.PIV_settings;
-cset = config.COM_settings;
-
 create_folder_structure(config);
 initRecordingLog(config.log_path);
-
 
 %% Setup Equipment
 disp(" ");
 
-% Initialize BNC %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-bnc = bnc_init(cset.bnc_connection);
-% Program BNC with current parameters
-bnc_program(bnc, eset.acquisition_freq_Hz, eset.delta_t_us, eset.pulse_width_us, eset.nDoubleFrames);
+bnc = bnc_init(config.COM_settings.bnc_connection);
+bnc_program(bnc, config.PIV_settings.acquisition_freq_Hz, config.PIV_settings.delta_t_us, config.PIV_settings.pulse_width_us, config.PIV_settings.nDoubleFrames);
 
-% Initialize Laser %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-Audio = audioplayer([sin(1:.6:400), sin(1:.7:400), sin(1:.4:400)], 22050); % Audio queue for laser boot up
+Audio = audioplayer([sin(1:.6:400), sin(1:.7:400), sin(1:.4:400)], 22050); 
 disp(' ')
 disp('CONNECTION TO LASER WILL BE INITIALIZED')
 disp('FULL LASER SAFETY REQUIRED TO CONTINUE')
@@ -93,115 +94,68 @@ play(Audio);
 response = input('HAVE YOU FOLLOWED ALL THE LASER SAFETY CHECKLIST AND ARE READY TO CONTINUE? (YES/NO): ', 's');
 disp('')
 
-% Use strcmpi for case-insensitive comparison
 if strcmpi(response, 'YES')
     disp('LASER COMING ONLINE IN')
-    disp('3')
-    play(Audio); pause(1);
-    disp('2')
-    play(Audio); pause(1);
-    disp('1')
-    play(Audio); pause(1);
+    disp('3'); play(Audio); pause(1);
+    disp('2'); play(Audio); pause(1);
+    disp('1'); play(Audio); pause(1);
 
-    laserControl = DM40Control(cset.laser_connection); % 1. Connect
-    laserDashboard = LaserDashboard(laserControl); % 2. Open Dashboard
-    laserControl.Verbose = false; % Decide what to display on command line
+    laserControl = DM40Control(config.COM_settings.laser_connection); 
+    laserDashboard = LaserDashboard(laserControl); 
+    laserControl.Verbose = false; 
     targetHeads = 'both'; 
     
-    % Set laser control parameters
-    laserControl.setPRFSource(1, targetHeads);   % Set PRF to Internal (0) or external (1)
-    laserControl.setGateSource(1, targetHeads);   % Set PRF to Internal (0) or external (1)
+    laserControl.setPRFSource(1, targetHeads); % External frequency control
+    laserControl.setGateSource(1, targetHeads); % External gate control
+    laserControl.setFPK(0, 'both'); % No 'First-pulse-kill'
 
     disp('LASER CONNECTION ESTABLISHED - LASER CAN FIRE AT ANY MOMENT WITHOUT WARNING')
 else
     error('LASER CONNECTION ABORTED BY USER.');
 end
 
-
-% Initialize & arm cameras %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-% !!! For now launch through command line or using Visual Studio
-% We need a communication protocol between c++ and Matlab -> TODO !!!
-%
-% camera_cmd = camera_exe + " " + configFile;
-% status = system(camera_cmd)
 disp("--- LAUNCH CAMERA PROGRAM NOW ---")
 
-% Initialize particle seeding valve control %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 disp("Connect to seeding solenoid valve, this will seed for 2 sec")
-valveArduino = conSolenoidValve(cset.valveArduino_connection);
-pause(2)
+valveArduino = conSolenoidValve(config.COM_settings.valveArduino_connection);
+pause(2) % Don't reduce this below 2sec, the Arduino can't handle it.
 closeSolenoidValve(valveArduino);
 
-
-%% Set up optimization loop parameters
-optPIV_settings.plotting = plotting;
-optPIV_settings.config = config;
-optPIV_settings.skipCycles = skipCycles;
-optPIV_settings.theta_min = 30; % minimum grid closing angle [deg]
+% Bundle hardware handlers to pass smoothly through optimization
+hw.bnc = bnc;
+hw.laserControl = laserControl;
+hw.valveArduino = valveArduino;
 
 return
 
 
 %% Set up optimization
-% frequencyRange = [0.5, 8];
-alphaRange = [0, 59.5];
-relBetaRange = [0, 1];
-% Define the optimization variables
 vars = [
-    % LISBON RUN PARAMETERS:
-    % optimizableVariable('frequency', [7, 8])
-    optimizableVariable('alpha', alphaRange)
-    optimizableVariable('relBeta', relBetaRange)
-    % DFD RUN PARAMETERS:
-    % optimizableVariable('frequency', frequencyRange)
-    % optimizableVariable('alpha', [0, 59.5])
-    % optimizableVariable('relBeta', [0, 1])
+    % optimizableVariable('frequency', config.OPT_settings.freqencyRange)
+    optimizableVariable('alpha', config.OPT_settings.alphaRange)
+    optimizableVariable('relBeta', config.OPT_settings.relBetaRange)
 ];
-
-% Define the constraint function: must return <= 0 when satisfied
-% constraintFcn = @(x) deal(x.beta - x.alpha, []);  % inequality c(x) <= 0 → ensures alpha > beta
 
 lastSeedingTime = tic;
 
-% Run Bayesian optimization
-% results = bayesopt(@(x) atgOpt_objFcn_synchr(x.frequency, x.alpha, x.relBeta), ...
-results = bayesopt(@(x) atgOpt_objFcn_synchr(10, x.alpha, x.relBeta), ...
+% Run Bayesian optimization passing hardware and config via anonymous function
+results = bayesopt(@(x) atgOpt_objFcn_synchr(10, x.alpha, x.relBeta, config, hw), ...
     vars, ...
     'MaxObjectiveEvaluations', 40, ...
     'IsObjectiveDeterministic', false, ...
     'AcquisitionFunctionName', 'expected-improvement-plus');
 
-% Run Bayesian optimization
-% results = bayesopt(@(x) atgOpt_objFcn(x.frequency, x.alpha, x.beta), ...
-%     vars, ...
-%     'MaxObjectiveEvaluations', 60, ...
-%     'IsObjectiveDeterministic', false, ...
-%     'AcquisitionFunctionName', 'expected-improvement-plus', ...
-%     'Constraints', constraintFcn);
-
-% best_frequency = results.XAtMinObjective.frequency;
-% best_amplitude = results.XAtMinObjective.amplitude;
-% best_offset = results.XAtMinObjective.offset;
 best_J = results.MinObjective;
-
-% fprintf('Best frequency: %.4f\n', best_frequency);
-% fprintf('Best amplitude: %.4f\n', best_amplitude);
-% fprintf('Best offset: %.4f\n', best_offset);
 fprintf('Best opt val: %.6f\n', best_J);
 
+% Disarm system, cleanup
+bnc_disarm(hw.bnc)
 
-%% Disarm system, cleanup
-bnc_disarm(bnc)
-
-delete(bnc)
+delete(hw.bnc)
 delete(laserDashboard)
-delete(laserControl)
-
-clear bnc laserDashboard laserControl
+delete(hw.laserControl)
 
 disp("!!! SHUT DOWN LASER AND CAMERAS !!!")
 
-
-%% Safe data
-save(fullfile(root_dir, "workspaceOptimization.mat"))
-
+% Safe data
+save(fullfile(config.root_dir, "workspaceOptimization.mat"))

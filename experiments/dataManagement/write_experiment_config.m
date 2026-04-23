@@ -1,10 +1,12 @@
-function jsonFilePath = write_experiment_config(root_dir, PIV_settings, COM_settings, davis_exe, davis_project_source, options)
+function jsonFilePath = write_experiment_config(root_dir, PIV_settings, COM_settings, EVAL_settings, OPT_settings, davis_exe, davis_project_source, options)
 %% WRITE_EXPERIMENT_CONFIG Saves experiment config to JSON.
 %
 % Required Parameters:
 %   root_dir (string): Root data directory.
 %   PIV_settings (struct): Acquisition settings.
 %   COM_settings (struct): Communication settings (equipment).
+%   EVAL_settings (struct): Flow evaluation settings and weights.
+%   OPT_settings (struct): Optimization bounds and loop parameters.
 %   davis_exe (string): Path to DaVis executable.
 %   davis_project_source (string): Path to source DaVis project.
 %
@@ -18,6 +20,8 @@ function jsonFilePath = write_experiment_config(root_dir, PIV_settings, COM_sett
         root_dir string
         PIV_settings struct
         COM_settings struct
+        EVAL_settings struct
+        OPT_settings struct
         davis_exe string
         davis_project_source string
         options.davis_proj_name string = "optimusPivDfd"
@@ -57,7 +61,9 @@ function jsonFilePath = write_experiment_config(root_dir, PIV_settings, COM_sett
         'log_path', log_path, ...
         'proc_log', proc_log, ...
         'PIV_settings', PIV_settings, ...
-        'COM_settings', COM_settings ...
+        'COM_settings', COM_settings, ...
+        'EVAL_settings', EVAL_settings, ...
+        'OPT_settings', OPT_settings ...
     );
 
     % Write to JSON
@@ -76,6 +82,6 @@ function jsonFilePath = write_experiment_config(root_dir, PIV_settings, COM_sett
 
     if options.verbose
         fprintf('\nExperiment Configuration Written to: %s\n', jsonFilePath);
-        print_struct_table(config, 'Top-Level Paths'); % Assuming you have this custom function elsewhere
+        print_struct_table(config, 'Top-Level Paths'); 
     end
 end

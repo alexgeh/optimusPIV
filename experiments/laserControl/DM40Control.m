@@ -3,7 +3,7 @@
 % 
 % Author:       Alexander Gehrke / Breuer Lab
 % Date:         April 10, 2026
-% Version:      1.0.0
+% Version:      1.1.0
 % Description:  Controls a Photonics DM40-DH Dual-Head Laser via RS-232.
 %               Features detailed status tracking, safety interlocks, 
 %               full telemetry, and smart-polling hardware confirmation.
@@ -265,6 +265,57 @@ classdef DM40Control < handle
                 obj.checkWriteSuccess(writeData, 'Set Current');
                 
                 obj.State(idx).SetCurrent = targetAmps;
+            end
+        end
+
+        function waitForCurrent(obj, targetAmps, headAddr)
+            heads = obj.resolveHeads(headAddr);
+            
+            for i = 1:length(heads)
+                addr = heads(i);
+                
+                % Resolve 'max' string to actual numeric target
+                if (ischar(targetAmps) || isstring(targetAmps)) && strcmpi(targetAmps, 'max')
+                    tAmps = obj.getMaxCurrent(addr);
+                else
+                    tAmps = double(targetAmps);
+                end
+                
+                % Define an acceptable tolerance (e.g. within 0.5A of target)
+                tolerance = 0.5; 
+                actualCurrent = obj.getCurrent(addr);
+                
+                if actualCurrent < (tAmps - tolerance)
+                    obj.vprint('Head %d: Waiting for current to ramp UP to %.2f A...\n', addr, tAmps);
+                    
+                    lastProgressAmps = actualCurrent;
+                    tStall = tic;
+                    warned = false;
+                    
+                    while actualCurrent < (tAmps - tolerance)
+                        % Warn if it's sluggish
+                        if toc(tStall) > 3.0 && ~warned
+                            fprintf('WARNING: Head %d current ramp-up is taking longer than expected (%.2f A). Waiting...\n', addr, actualCurrent);
+                            warned = true;
+                        end
+                        
+                        % Abort if it completely stalls for 8 seconds
+                        if toc(tStall) > 8.0 
+                            error('HARDWARE STALL: Head %d current stuck around %.2f A. Aborting ramp-up.', addr, actualCurrent);
+                        end
+                        
+                        pause(0.5); % FLUSHES THE EVENT QUEUE - UI WILL UPDATE HERE!
+                        actualCurrent = obj.getCurrent(addr);
+                        
+                        % Reset stall timer if current climbs by at least 0.3A
+                        if actualCurrent > (lastProgressAmps + 0.3)
+                            lastProgressAmps = actualCurrent;
+                            tStall = tic; 
+                            warned = false;
+                        end
+                    end
+                    obj.vprint('Head %d: Target current reached (%.2f A).\n', addr, actualCurrent);
+                end
             end
         end
         

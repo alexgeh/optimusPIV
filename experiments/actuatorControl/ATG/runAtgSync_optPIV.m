@@ -1,13 +1,12 @@
-function runAtgSync_optPIV(freq, ampl, offset)
+function runAtgSync_optPIV(freq, ampl, offset, config, hw)
 %% Run the active turbulence grid (ATG) for one iteration of the PIV
 %  optimzation algorithm.
 %
 %  Alexander Gehrke - 20251014
 %#ok<*GVMIS>
 
-global bnc % Grab BNC object to trigger PIV system (laser)
-global optPIV_settings
-skipCycles = optPIV_settings.skipCycles;
+% Pull skipCycles directly from the config struct
+skipCycles = config.OPT_settings.skipCycles;
 
 AtgExe = "C:\Users\agehrke\Downloads\MATLAB\active-turbulence-grid\src\Backend\ATG_CONTROLLER\x64\Debug\ATG_CONTROLLER.exe";
 % AtgExe = "R:\ENG_Breuer_Shared\agehrke\MATLAB\active-turbulence-grid\src\Backend\ATG_CONTROLLER\x64\Debug\ATG_CONTROLLER.exe";
@@ -63,7 +62,7 @@ pause(shortCmdWait)
 
 atg.bfsync(allNodeIdx, ampl, freq, duration, offset);
 pause(triggerDelay)
-bnc_software_trigger(bnc, 0)
+bnc_software_trigger(hw.bnc, 0)
 pause(duration - triggerDelay + 5); % Wait some extra to make sure motion is done
 
 % Stop logging and motion, bring motors back to zero position

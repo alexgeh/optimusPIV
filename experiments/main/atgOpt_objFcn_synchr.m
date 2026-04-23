@@ -1,34 +1,23 @@
-function J = atgOpt_objFcn_synchr(freq, alpha, relBeta)
+function J = atgOpt_objFcn_synchr(freq, alpha, relBeta, config, hw)
 %% Objective function for the active turbulence grid (ATG) flow field
 %  optimization
 %#ok<*GVMIS>
 
-% non-linear objective penalty:
-% if relBeta >= alpha
-%     J = 1e6; % Large penalty if constraint is violated
-%     return
-% end
-
-global bnc
-global laserControl
-global valveArduino
+% Mutable states required for loop continuity
 global lastSeedingTime
-global optPIV_settings
 global recIdx
 global optResults
 
-plotting = optPIV_settings.plotting;
-config = optPIV_settings.config;
-theta_min = optPIV_settings.theta_min;
-% rho_air = optPIV_settings.rho_air;
+plotting = config.OPT_settings.plotting;
+theta_min = config.OPT_settings.theta_min;
 
 elapsedTime = toc(lastSeedingTime) / 60;
-if elapsedTime > 15
+if elapsedTime > 10 % Seeding every N minutes
     disp("next seeding interval starting in 5sec")
     pause(5)
-    openSolenoidValve(valveArduino);
+    openSolenoidValve(hw.valveArduino);
     pause(30) % seeding time
-    closeSolenoidValve(valveArduino);
+    closeSolenoidValve(hw.valveArduino);
     lastSeedingTime = tic;
     pause(30) % circulation of particles
     disp("seeding complete, continuing with experiments")
@@ -36,7 +25,7 @@ end
 
 
 %% Arm the system
-bnc_arm(bnc);
+bnc_arm(hw.bnc);
 pause(0.5)
 
 
@@ -44,10 +33,9 @@ pause(0.5)
 targetHeads = 'both'; 
 targetAmps  = 'max';
 
-% disp('Initializing laser ramp up procedure:')
-laserControl.openShutter(targetHeads);
-laserControl.turnOnDiode(targetHeads);
-laserControl.setCurrent(targetAmps, targetHeads);
+hw.laserControl.openShutter(targetHeads);
+hw.laserControl.turnOnDiode(targetHeads);
+hw.laserControl.setCurrent(targetAmps, targetHeads);
 
 
 %% Trigger if using software mode
@@ -56,13 +44,10 @@ offset = -(90 - alpha - theta_min);
 ampl = 180 - 2*theta_min - alpha - beta;
 
 disp("ATG Run - freq: " + num2str(freq) + "; ampl: " + num2str(ampl) + "; offset: " + num2str(offset))
-% disp("press button to continue")
-% waitforbuttonpress(); % verify grid actuation is sound
 
-runAtgSync_optPIV(freq, ampl, offset);
+runAtgSync_optPIV(freq, ampl, offset, config, hw);
 
-% disp('Ramping down laser:')
-laserControl.shutdown(targetHeads)
+hw.laserControl.shutdown(targetHeads)
 pause(0.5)
 
 
@@ -82,7 +67,9 @@ transfer_files(config.davis_templ_dir, config.proc_PIV_dir, recIdx, "vc7");
 
 %% Analyze PIV
 PIVfolder = fullfile(config.proc_PIV_dir, sprintf('ms%04d', recIdx));
-[J, J_comp, metrics, fields] = objEval_turbulenceIntensity(PIVfolder);
+
+% Pass evaluation settings into the analyzer
+[J, J_comp, metrics, fields] = objEval_turbulenceIntensity(PIVfolder, config.EVAL_settings);
 
 disp("Current: J = " + num2str(J) + ...
     ", J_TI = " + num2str(J_comp.J_TI) + ...
@@ -106,4 +93,3 @@ optResults(recIdx).fields = fields;
 recIdx = recIdx + 1;
 
 end
-

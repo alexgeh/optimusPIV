@@ -6,7 +6,7 @@ classdef LaserDashboard < handle
         UIFig
         MainLayout  
         UITimer
-        BtnShutdown % NEW: Emergency shutdown button
+        BtnShutdown 
         
         % Tables
         TabParams
@@ -40,10 +40,18 @@ classdef LaserDashboard < handle
         end
         
         function updateUI(obj)
+            % 1. Standard UI lifecycle checks
             if ~isvalid(obj.UIFig), return; end
             if isempty(obj.LaserObj) || ~isvalid(obj.LaserObj), return; end
-            if obj.LaserObj.IsBusy, return; end 
             
+            % 2. Spinlock check 
+            if obj.LaserObj.IsBusy 
+                % WARNING PRINT: If the UI is frozen because of a stuck lock, this will spam!
+                fprintf(2, 'Dashboard Update Skipped: Laser is locked (IsBusy = true)\n');
+                return; 
+            end
+            
+            % 3. THE SHIELD
             try
                 stats = obj.LaserObj.readDetailedStatus('both');
                 amps = obj.LaserObj.getCurrent('both');
@@ -74,7 +82,6 @@ classdef LaserDashboard < handle
                 okalm = {'✅ OK', '⚠️ ALARM'};
                 intext = {'INTERNAL', 'EXTERNAL'};
                 
-                % NEW: Safety alert colors for core states
                 shutAlert = {'🟢 CLOSED', '🔴 OPEN'};
                 lddAlert  = {'🟢 OFF', '🔴 ON'};
                 
@@ -92,7 +99,6 @@ classdef LaserDashboard < handle
                     pData{3,i} = shutAlert{stats(i).StatusFlags.ShutterEnabled + 1};
                     pData{4,i} = lddAlert{stats(i).StatusFlags.LDDOn + 1};
                     
-                    % PRF Frequency display logic
                     if obj.LaserObj.State(i).PRFSourceExt
                         pData{5,i} = sprintf('%d Hz (External)', obj.LaserObj.State(i).PRFHz);
                     else
@@ -144,9 +150,15 @@ classdef LaserDashboard < handle
                     aData{7,i} = getAlm(stats(i).GeneralAlarms, 'HFSync');
                 end
                 obj.TabAlarms.Data = aData;
+
+                drawnow limitrate;
                 
-            catch
-                % Ignore polling faults
+            catch ME
+                % ERROR PRINT: This forces the dashboard to confess its internal errors!
+                fprintf(2, 'Dashboard Update Error: %s\n', ME.message);
+                if ~isempty(ME.stack)
+                    fprintf(2, 'Failed at Line %d in %s\n', ME.stack(1).line, ME.stack(1).name);
+                end
             end
         end
         
@@ -161,7 +173,7 @@ classdef LaserDashboard < handle
             % --- SHUTDOWN BUTTON ---
             obj.BtnShutdown = uibutton(obj.MainLayout, ...
                 'Text', 'Safe Software Shutdown (Not an E-Stop)', ...
-                'BackgroundColor', [0.9, 0.6, 0.2], ... % Amber/Orange instead of red
+                'BackgroundColor', [0.9, 0.6, 0.2], ... % Amber/Orange warning
                 'FontColor', 'k', ...
                 'FontWeight', 'bold', ...
                 'ButtonPushedFcn', @(~,~) obj.LaserObj.shutdown('both', true));
