@@ -90,6 +90,14 @@ optResults(recIdx).J = J;
 optResults(recIdx).J_comp = J_comp;
 optResults(recIdx).metrics = metrics;
 optResults(recIdx).fields = fields;
+
+% --- NEW: Save step data immediately to disk ---
+stepData = optResults(recIdx);
+stepFileName = fullfile(config.analysis_PIV_dir, sprintf('optStep_ms%04d.mat', recIdx));
+save(stepFileName, 'stepData');
+disp("Saved step data to: " + stepFileName);
+% ---------------------------------------------
+
 recIdx = recIdx + 1;
 
 end
