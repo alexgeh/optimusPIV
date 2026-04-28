@@ -6,8 +6,8 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
 %   x, y               : coordinate vectors (1D, monotonic)
 %
 % Output:
-%   metrics : 
-
+%   metrics : structure containing calculated values
+%   fields  : structure containing generated 2D fields
 
     %% Grid spacing
     dx = x(1,2) - x(1,1);
@@ -29,20 +29,29 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
     uu = mean(u_fluct.^2,3,'omitnan');
     vv = mean(v_fluct.^2,3,'omitnan');
 
-    %% time-resolved gradients
-    % for framei = 1:size(u,3)
-    % [~, dudy(:,:,framei)] = gradient(u(:,:,framei), dx, dy);
-    % end
-    % dudy_mean = mean(dudy(:),'omitnan');
-
-    %% --- (1) Velocity gradient measure ---
+    %% --- (1) Velocity gradient & Homogeneity ---
     [dUdx, dUdy] = gradient(U, dx, dy);
     [dVdx, dVdy] = gradient(V, dx, dy);
 
     velgrad_field = sqrt(dUdx.^2 + dUdy.^2 + dVdx.^2 + dVdy.^2);
     velgrad_mean = mean(velgrad_field(:),'omitnan');
     dUdy_mean = mean(dUdy(:),'omitnan');
+    
+    % NEW: CV of Velocity (Uniformity of mean flow)
+    U_mean = mean(U(:), 'omitnan');
+    CV_U = std(U(:), 'omitnan') / (U_mean + eps);
 
+    % NEW: Robust Signed Slope: Fit a 1st order polynomial to the y-profile
+    U_y_profile = mean(U, 2, 'omitnan'); % Average across columns (x-direction)
+    y_vec = y(:,1); % Extract vertical coordinate vector
+    
+    valid_U_idx = ~isnan(U_y_profile);
+    if sum(valid_U_idx) >= 2
+        p_U = polyfit(y_vec(valid_U_idx), U_y_profile(valid_U_idx), 1);
+        dUdy_slope = p_U(1);
+    else
+        dUdy_slope = NaN; % Fallback if data is too sparse
+    end
 
     %% --- (2) Turbulence intensity and its gradient ---
     TI = sqrt(u_rms.^2 + v_rms.^2) ./ (sqrt(U.^2 + V.^2) + eps);
@@ -54,32 +63,44 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
 
     dTIdy_mean = mean(dTI_dy(:),'omitnan');
 
-
-    %% --- (3) Homogeneity CV ---
+    % Homogeneity CV of TI
     TI_mean = mean(TI(:),'omitnan');
     TI_std  = std(TI(:),'omitnan');
-    CV = TI_std / (TI_mean + eps);
+    CV_TI = TI_std / (TI_mean + eps);
 
+    % NEW: Robust Signed Slope for TI
+    TI_y_profile = mean(TI, 2, 'omitnan');
+    
+    valid_TI_idx = ~isnan(TI_y_profile);
+    if sum(valid_TI_idx) >= 2
+        p_TI = polyfit(y_vec(valid_TI_idx), TI_y_profile(valid_TI_idx), 1);
+        dTIdy_slope = p_TI(1);
+    else
+        dTIdy_slope = NaN;
+    end
 
-    %% --- Anisotropy measure (2D surrogate) ---
+    %% --- (3) Anisotropy measure (2D surrogate) ---
     % Using difference between normal stresses, normalized
     aniso_field = abs(uu - vv) ./ (uu + vv + eps);
     aniso_mean = mean(aniso_field,'all','omitnan');
 
-    % Frobenius norm explicitly:
-    % J_aniso = mean(sqrt(uu.^2 + vv.^2) ./ (uu + vv + eps),'all','omitnan');
-
-
     %% Package metrics and fields
+    % Original metrics
     metrics.TI_mean = TI_mean;
     metrics.TI_std = TI_std;
     metrics.TIgrad_mean = TIgrad_mean;
     metrics.TIgrad_std = TIgrad_std;
     metrics.dTIdy_mean = dTIdy_mean;
-    metrics.CV = CV;
+    metrics.CV = CV_TI; % Maintained for backward compatibility
     metrics.velgrad_mean = velgrad_mean;
     metrics.dudy_mean = dUdy_mean;
     metrics.aniso_mean = aniso_mean;
+    
+    % New multi-objective metrics
+    metrics.CV_U = CV_U;
+    metrics.CV_TI = CV_TI;
+    metrics.dUdy_slope = dUdy_slope;
+    metrics.dTIdy_slope = dTIdy_slope;
 
     fields.U = U;
     fields.V = V;
@@ -90,15 +111,13 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
     fields.dTIdy = dTI_dy;
     fields.aniso = aniso_field;
 
-
     %% Plotting
     if doPlot
         figure(201)
         limits = [TI_mean-TI_std TI_mean+TI_std];
-%         limits = [0 0.03];
         nLevel = 25;
         toplot = TI;
-        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        [~,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
         colorbar()
         clim(limits)
@@ -106,10 +125,9 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
 
         figure(202)
         limits = [0.5*TIgrad_mean 1.5*TIgrad_mean];
-%         limits = [0 0.2];
         nLevel = 25;
         toplot = TIgrad_field;
-        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        [~,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
         colorbar()
         clim(limits)
@@ -119,7 +137,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         limits = [0.5*velgrad_mean 1.5*velgrad_mean];
         nLevel = 25;
         toplot = velgrad_field;
-        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        [~,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
         colorbar()
         clim(limits)
@@ -129,7 +147,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         limits = [0.5*aniso_mean 1.5*aniso_mean];
         nLevel = 25;
         toplot = aniso_field;
-        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        [~,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
         colorbar()
         clim(limits)
@@ -137,9 +155,11 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
 
         figure(205)
         toplot = u(:,:,1);
-        limits = [mean(toplot,'all')-mean(std(toplot),'all') mean(toplot,'all')+mean(std(toplot),'all')];
+        toplotMean = mean(toplot,'all','omitnan');
+        toplotStd = mean(std(toplot,'omitnan'),'all');
+        limits = [toplotMean-toplotStd toplotMean+toplotStd];
         nLevel = 25;
-        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        [~,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
         colorbar()
         clim(limits)
@@ -147,9 +167,11 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
 
         figure(206)
         toplot = u(:,:,end);
-        limits = [mean(toplot,'all')-mean(std(toplot),'all') mean(toplot,'all')+mean(std(toplot),'all')];
+        toplotMean = mean(toplot,'all','omitnan');
+        toplotStd = mean(std(toplot,'omitnan'),'all');
+        limits = [toplotMean-toplotStd toplotMean+toplotStd];
         nLevel = 25;
-        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        [~,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
         colorbar()
         clim(limits)
@@ -159,7 +181,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         limits = sort([0.5*dUdy_mean 1.5*dUdy_mean]);
         nLevel = 25;
         toplot = dUdy;
-        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        [~,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
         colorbar()
         clim(limits)
@@ -169,7 +191,7 @@ function [metrics, fields] = turbulenceMetrics(u,v,x,y,doPlot)
         toplot = dTI_dy;
         limits = [mean(toplot,'all')-mean(std(toplot),'all') mean(toplot,'all')+mean(std(toplot),'all')];
         nLevel = 25;
-        [C,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
+        [~,h] = contourf(x, y, toplot, [nanmin2(toplot),linspace(limits(1),limits(2),nLevel),nanmax2(toplot)]);
         set(h,'linestyle','none')
         colorbar()
         clim(limits)

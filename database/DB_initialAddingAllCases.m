@@ -2,8 +2,11 @@
 clear
 
 % Where all optimizations are being stored:
-rootDir = 'R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\';
+rootDir = 'R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV';
+optDataDir = fullfile(rootDir, 'fullOptimizations');
 
+
+%% 2025 APS DFD
 % synchronous control - TI_target = 0.2, homogeneous, isotropic
 meta.caseID = '20251017_ATG_bayes_opt_3';
 meta.description = 'synchronous control - TI_target = 0.2, others: homogeneous, isotropic';
@@ -12,7 +15,7 @@ meta.xCropRange = [-0.1445 0.0667]; % Was required for 20251017_ATG_bayes_opt_3 
 meta.yCropRange = [-0.0650 0.1396];
 meta.nProcFrames = 200; 
 meta.TI_target = 0.2;
-optDB = DB_addCase([], fullfile(rootDir, meta.caseID), meta);
+optDB = DB_addCase([], fullfile(optDataDir, meta.caseID), meta);
 
 % y-gradient control - TI_target = 0.2, dudy_target = -2.5, others: homogeneous, isotropic
 meta.caseID = '20251022_ATG_bayes_opt_4';
@@ -23,7 +26,7 @@ meta.yCropRange = [-0.111 0.137];
 meta.nProcFrames = 190; 
 meta.TI_target = 0.2;
 meta.dudy_target = -2.5;
-optDB = DB_addCase(optDB, fullfile(rootDir, meta.caseID), meta);
+optDB = DB_addCase(optDB, fullfile(optDataDir, meta.caseID), meta);
 
 % y-gradient control - TI_target = 0.2, dudy_target = -2.5, others: homogeneous, isotropic
 meta.caseID = '20251023_ATG_bayes_opt_5';
@@ -34,7 +37,7 @@ meta.yCropRange = [-0.111 0.137];
 meta.nProcFrames = 190; 
 meta.TI_target = 0.2;
 meta.dudy_target = -2.5;
-optDB = DB_addCase(optDB, fullfile(rootDir, meta.caseID), meta);
+optDB = DB_addCase(optDB, fullfile(optDataDir, meta.caseID), meta);
 
 % y-gradient control - TI_target = 0.2, dudy_target = -2.5, others: homogeneous, isotropic
 meta.caseID = '20251023_ATG_bayes_opt_6';
@@ -45,7 +48,7 @@ meta.yCropRange = [-0.111 0.137];
 meta.nProcFrames = 190; 
 meta.TI_target = 0.2;
 meta.dudy_target = -2.5;
-optDB = DB_addCase(optDB, fullfile(rootDir, meta.caseID), meta);
+optDB = DB_addCase(optDB, fullfile(optDataDir, meta.caseID), meta);
 
 % y-gradient control - TI_target = 0.2, dTIdy_target = -0.2, others: homogeneous, isotropic
 meta.caseID = '20251024_ATG_bayes_opt_7';
@@ -56,12 +59,51 @@ meta.yCropRange = [-0.111 0.137];
 meta.nProcFrames = 190; 
 meta.TI_target = 0.2;
 meta.dTIdy_target = -0.2;
-optDB = DB_addCase(optDB, fullfile(rootDir, meta.caseID), meta);
+optDB = DB_addCase(optDB, fullfile(optDataDir, meta.caseID), meta);
 
 % Recompute everything, overwriting metrics but not saving big fields
 optDBrecomp = DB_recompute(optDB, [], struct('force',true,'saveFields',true));
 
-save('optDB.mat', 'optDB', '-v7.3');
+%% 2026 LISBON
+%  synchronous control - TI_target = 0.2, fixed frequency (f=10Hz), homogeneous, isotropic
+meta.caseID = '20260417_ATG_highFreq_opt_1';
+meta.description = 'synchronous control - TI_target = 0.2, others: f=10Hz(fixed), homogeneous, isotropic';
+meta.weights = struct('J_TI',0.6,'J_hom_velgrad',0.01,'J_hom_TIgrad',0.01,'J_hom_CV',0.28,'J_aniso',0.1);
+meta.cropFraction = 0.05;
+meta.nProcFrames = 200; 
+meta.TI_target = 0.2;
+optDB = DB_addCase(optDB, fullfile(optDataDir, meta.caseID), meta);
+
+%  synchronous control - TI_target = 0.2, fixed frequency (f=10Hz), homogeneous, isotropic
+meta.caseID = '20260422_ATG_highFreq_opt_2';
+meta.description = 'synchronous control - TI_target = 0.2, others: f=10Hz(fixed), homogeneous, isotropic';
+meta.weights = struct('J_TI',0.6,'J_hom_velgrad',0.01,'J_hom_TIgrad',0.01,'J_hom_CV',0.28,'J_aniso',0.1);
+meta.cropFraction = 0.05;
+meta.nProcFrames = 400; 
+meta.TI_target = 0.2;
+optDB = DB_addCase(optDB, fullfile(optDataDir, meta.caseID), meta);
+
+%  synchronous control - TI_target = 0.15, fixed frequency (f=10Hz), homogeneous, isotropic
+meta.caseID = '20260423_ATG_highFreq_opt_4';
+meta.description = 'synchronous control - TI_target = 0.15, others: f=10Hz(fixed), homogeneous, isotropic';
+meta.weights = struct('J_TI',0.6,'J_hom_velgrad',0.01,'J_hom_TIgrad',0.01,'J_hom_CV',0.28,'J_aniso',0.1);
+meta.cropFraction = 0.05;
+meta.nProcFrames = 400; 
+meta.TI_target = 0.15;
+optDB = DB_addCase(optDB, fullfile(optDataDir, meta.caseID), meta);
+
+%  synchronous control - TI_target = 0.15, fixed frequency (f=10Hz), homogeneous, isotropic
+meta.caseID = '20260424_ATG_highFreq_opt_5';
+meta.description = 'synchronous control - TI_target = 0.15, others: f=10Hz(fixed), homogeneous, isotropic';
+% meta.weights = struct('J_TI',0.6,'J_hom_velgrad',0.01,'J_hom_TIgrad',0.01,'J_hom_CV',0.28,'J_aniso',0.1);
+meta.cropFraction = 0.05;
+meta.nProcFrames = 400; 
+meta.TI_target = 0.15;
+optDB = DB_addCase(optDB, fullfile(optDataDir, meta.caseID), meta);
+
+
+%% Save data base
+save(fullfile(rootDir, 'optDB.mat'), 'optDB', 'rootDir', 'optDataDir');
 
 return
 

@@ -13,6 +13,7 @@ function optDB = DB_recompute(optDB, filter, opts)
 %            .force      (logical) : overwrite existing metrics (default false)
 %            .saveFields (logical) : save recomputed fields into DB (default false)
 %            .verbose    (logical) : print progress (default true)
+%            .relCrop    (numeric) : relative margin to crop from edges (default 0.05)
 %
 % Behavior:
 %   Each element of optDB is one iteration. This function recomputes each selected
@@ -39,6 +40,7 @@ function optDB = DB_recompute(optDB, filter, opts)
     if ~isfield(opts,'force'), opts.force = false; end
     if ~isfield(opts,'saveFields'), opts.saveFields = false; end
     if ~isfield(opts,'verbose'), opts.verbose = true; end
+    if ~isfield(opts,'relCrop'), opts.relCrop = 0.05; end
 
     if isempty(subset)
         if opts.verbose, fprintf('DB_recompute: no matching entries to recompute.\n'); end
@@ -65,8 +67,7 @@ function optDB = DB_recompute(optDB, filter, opts)
             fprintf('Recomputing: case="%s" iter=%d ... ', caseDir, iterIdx);
         end
 
-        % Build PIV folder path: assume msXXXX numbering matches iteration (existing logic)
-        % If you want a different mapping, change this.
+        % Build PIV folder path: assume msXXXX numbering matches iteration
         PIVfolder = fullfile(caseDir, 'proc_PIV', sprintf('ms%.4d', iterIdx));
         if ~isfolder(PIVfolder)
             warning('DB_recompute:MissingPIV', 'PIV folder not found: %s', PIVfolder);
@@ -77,7 +78,7 @@ function optDB = DB_recompute(optDB, filter, opts)
 
         % Load PIV data (user-supplied loadpiv)
         try
-            D = loadpiv(PIVfolder);
+            D = loadpiv(PIVfolder, 'verbose', false);
         catch ex
             warning('DB_recompute:LoadPIV', 'Error loading PIV data from %s: %s', PIVfolder, ex.message);
             nMissing = nMissing + 1;
@@ -94,17 +95,17 @@ function optDB = DB_recompute(optDB, filter, opts)
         if isfield(s, 'meta') && isstruct(s.meta) && ~isempty(s.meta)
             m = s.meta;
         else
-            % fallback: treat s itself as meta (flattened)
-            m = s;
+            m = s; % fallback
         end
 
-        % Provide safe defaults
-        if ~isfield(m, 'xCropRange') || isempty(m.xCropRange)
-            m.xCropRange = [min(x(:)), max(x(:))];
-        end
-        if ~isfield(m, 'yCropRange') || isempty(m.yCropRange)
-            m.yCropRange = [min(y(:)), max(y(:))];
-        end
+        % --- NEW: Relative Crop Logic ---
+        % Apply the relative crop percentage to avoid edge artifacts
+        Lx = max(x(:)) - min(x(:));
+        Ly = max(y(:)) - min(y(:));
+        
+        m.xCropRange = [min(x(:)) + opts.relCrop*Lx, max(x(:)) - opts.relCrop*Lx];
+        m.yCropRange = [min(y(:)) + opts.relCrop*Ly, max(y(:)) - opts.relCrop*Ly];
+
         if ~isfield(m, 'nProcFrames') || isempty(m.nProcFrames)
             m.nProcFrames = size(u,3);
         end
@@ -124,7 +125,7 @@ function optDB = DB_recompute(optDB, filter, opts)
         u_crop = u_crop(:,:,1:nFrames);
         v_crop = v_crop(:,:,1:nFrames);
 
-        % Compute metrics & fields (using user function turbulenceMetrics)
+        % Compute metrics & fields
         try
             [metrics, fields] = turbulenceMetrics(u_crop, v_crop, x_crop, y_crop, false);
         catch ex
@@ -144,9 +145,8 @@ function optDB = DB_recompute(optDB, filter, opts)
             continue;
         end
 
-        % Update metrics (respect opts.force: if not force and metrics exist, merge only missing fields)
+        % Update metrics (respect opts.force)
         if ~opts.force && isfield(optDB(matchIdx), 'metrics') && ~isempty(optDB(matchIdx).metrics)
-            % merge fields: overwrite existing fields only when new values are non-NaN
             newNames = fieldnames(metrics);
             for fn = newNames'
                 fname = fn{1};
@@ -163,7 +163,7 @@ function optDB = DB_recompute(optDB, filter, opts)
             optDB(matchIdx).metrics = metrics;
         end
 
-        % Save fields if requested (overwrite or set)
+        % Save fields if requested
         if opts.saveFields
             optDB(matchIdx).fields = fields;
         end
