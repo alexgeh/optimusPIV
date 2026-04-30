@@ -23,8 +23,8 @@ setup_experimental_configs_modular_v2;
 AL_settings = config.AL_settings;
 dbPath = fullfile('C:\PIV_SANDBOX\', 'actLearnDB.mat');
 
-input_defs  = getActiveDefs(AL_settings.input_defs,  AL_settings.active_input_names,  'input');
-output_defs = getActiveDefs(AL_settings.output_defs, AL_settings.active_output_names, 'output');
+input_defs  = actLearn_getActiveDefs(AL_settings.input_defs,  AL_settings.active_input_names,  'input');
+output_defs = actLearn_getActiveDefs(AL_settings.output_defs, AL_settings.active_output_names, 'output');
 
 input_keys  = {input_defs.key};
 output_keys = {output_defs.key};
@@ -45,8 +45,8 @@ else
 end
 
 % Full training matrices from the database. These may be large.
-X_all = extractMatrixFromDB(optDB, input_keys);
-Y_all = extractMatrixFromDB(optDB, output_keys);
+X_all = actLearn_extractMatrixFromDB(optDB, input_keys);
+Y_all = actLearn_extractMatrixFromDB(optDB, output_keys);
 validRows = all(isfinite(X_all),2) & all(isfinite(Y_all),2);
 X_all = X_all(validRows,:);
 Y_all = Y_all(validRows,:);
@@ -80,7 +80,11 @@ for iter = 1:AL_settings.n_iter
 
     if size(X_all, 1) >= AL_settings.minSamplesForModel
         fprintf('Training %d GP models on %d samples...\n', numel(output_defs), size(X_all, 1));
-        models = trainOutputModels(X_all, Y_all, output_defs);
+        [models, modelStats] = actLearn_trainOutputModels(X_all, Y_all, output_defs, ...
+            'KernelFunction', AL_settings.gp.kernelFunction, ...
+            'Standardize', true, ...
+            'MinTrain', AL_settings.minSamplesForModel, ...
+            'DoLOO', false);
 
         [x_next, acqInfo] = actLearn_getNextPt_GA(models, input_defs, output_defs, AL_settings);
         params_next = vectorToParams(x_next, AL_settings.input_defs, input_defs);
@@ -147,37 +151,6 @@ diary off;
 
 
 %% Local helpers ----------------------------------------------------------
-function defs = getActiveDefs(allDefs, activeNames, defType)
-    allNames = {allDefs.name};
-
-    idxOrder = NaN(1, numel(activeNames));
-
-    for j = 1:numel(activeNames)
-        idx = find(strcmp(allNames, activeNames{j}), 1, 'first');
-
-        if isempty(idx)
-            error('Unknown active %s name: %s', defType, activeNames{j});
-        end
-
-        idxOrder(j) = idx;
-    end
-
-    defs = allDefs(idxOrder);
-end
-
-function M = extractMatrixFromDB(optDB, keys)
-    if isempty(optDB)
-        M = zeros(0, numel(keys));
-        return
-    end
-
-    M = NaN(numel(optDB), numel(keys));
-    for k = 1:numel(keys)
-        vals = DB_extractData(optDB, keys{k});
-        M(:,k) = vals(:);
-    end
-end
-
 function row = recordToRow(record, defs)
     row = NaN(1, numel(defs));
     for k = 1:numel(defs)
@@ -200,37 +173,6 @@ function val = getByPath(S, key)
         val = tmp;
     elseif islogical(tmp) && isscalar(tmp)
         val = double(tmp);
-    end
-end
-
-function models = trainOutputModels(X, Y, output_defs)
-    models = struct([]);
-    for m = 1:numel(output_defs)
-        valid = all(isfinite(X),2) & isfinite(Y(:,m));
-        if nnz(valid) < 3
-            warning('Not enough valid rows to train model for %s.', output_defs(m).name);
-            continue
-        end
-
-        yTrain = Y(valid,m);
-        yScale = std(yTrain, 'omitnan');
-        if ~isfinite(yScale) || yScale <= 0
-            yScale = max(abs(mean(yTrain, 'omitnan')), 1);
-        end
-
-        gp = fitrgp(X(valid,:), yTrain, ...
-            'KernelFunction', 'matern52', ...
-            'Standardize', true);
-
-        kk = numel(models) + 1;
-        models(kk).name = output_defs(m).name; %#ok<AGROW>
-        models(kk).label = output_defs(m).label;
-        models(kk).role = output_defs(m).role;
-        models(kk).target = output_defs(m).target;
-        models(kk).targetWeight = output_defs(m).targetWeight;
-        models(kk).exploreWeight = output_defs(m).exploreWeight;
-        models(kk).yScale = yScale;
-        models(kk).gp = gp;
     end
 end
 

@@ -104,6 +104,7 @@ AL_settings.n_iter = 50;
 AL_settings.minSamplesForModel = 6;
 AL_settings.plotWindow = 50;               % plot only new/current-run values
 AL_settings.pauseBeforeLoop = true;
+AL_settings.gp.kernelFunction = 'ardmatern52';
 
 % Choose active design-space variables here. The actuation mode is inferred:
 % - no ampgrad/offsetgrad active and both zero -> synchronous actuation
