@@ -120,6 +120,10 @@ AL_settings.explore.antiCluster.minScale = 0.02;       % normalised units; numer
 AL_settings.explore.antiCluster.maxScale = 0.25;       % normalised units; numerical guardrail
 AL_settings.explore.antiCluster.fallbackScale = 0.10;  % used when there are too few samples
 
+AL_settings.explore.globalUncertainty.enabled = true;
+AL_settings.explore.globalUncertainty.nCandidates = 10000;
+AL_settings.explore.globalUncertainty.seed = 1;
+
 % Choose active design-space variables here. The actuation mode is inferred:
 % - no ampgrad/offsetgrad active and both zero -> synchronous actuation
 % - ampgrad or offsetgrad active/nonzero       -> gradient actuation

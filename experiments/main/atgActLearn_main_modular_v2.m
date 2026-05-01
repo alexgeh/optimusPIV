@@ -103,12 +103,44 @@ for iter = 1:AL_settings.n_iter
         % GA returns physical/design-space point
         [x_next, acqInfo] = actLearn_getNextPt_GA(models, input_defs, output_defs, AL_settings, X_all);
 
-        fprintf('Acquisition diagnostics: rawUnc=%.4g, antiCluster=%.4g, dNearest=%.4g, d0=%.4g, exploreScore=%.4g\n', ...
+        % Compute global uncertainty:
+        if isfield(AL_settings, 'explore') && ...
+                isfield(AL_settings.explore, 'globalUncertainty') && ...
+                isfield(AL_settings.explore.globalUncertainty, 'enabled') && ...
+                AL_settings.explore.globalUncertainty.enabled
+
+            globalInfo = actLearn_globalUncertainty(models, AL_settings, numel(input_defs));
+
+            acqInfo.globalMeanUncertainty   = globalInfo.meanUncertainty;
+            acqInfo.globalMedianUncertainty = globalInfo.medianUncertainty;
+            acqInfo.globalP90Uncertainty    = globalInfo.p90Uncertainty;
+            acqInfo.globalP99Uncertainty    = globalInfo.p99Uncertainty;
+            acqInfo.globalMaxUncertainty    = globalInfo.maxUncertainty;
+        else
+            acqInfo.globalMeanUncertainty   = NaN;
+            acqInfo.globalMedianUncertainty = NaN;
+            acqInfo.globalP90Uncertainty    = NaN;
+            acqInfo.globalP99Uncertainty    = NaN;
+            acqInfo.globalMaxUncertainty    = NaN;
+        end
+
+        % fprintf('Acquisition diagnostics: rawUnc=%.4g, antiCluster=%.4g, dNearest=%.4g, d0=%.4g, exploreScore=%.4g\n', ...
+        %     acqInfo.rawUncertaintyScore, ...
+        %     acqInfo.antiClusterPenalty, ...
+        %     acqInfo.nearestDistanceNorm, ...
+        %     acqInfo.antiClusterScale, ...
+        %     acqInfo.exploreScore);
+
+        fprintf(['Acquisition diagnostics: rawUnc=%.4g, antiCluster=%.4g, ', ...
+            'dNearest=%.4g, d0=%.4g, selectedExplore=%.4g, ', ...
+            'globalMean=%.4g, globalP90=%.4g\n'], ...
             acqInfo.rawUncertaintyScore, ...
             acqInfo.antiClusterPenalty, ...
             acqInfo.nearestDistanceNorm, ...
             acqInfo.antiClusterScale, ...
-            acqInfo.exploreScore);
+            acqInfo.exploreScore, ...
+            acqInfo.globalMeanUncertainty, ...
+            acqInfo.globalP90Uncertainty);
 
         params_next = vectorToParams(x_next, AL_settings.input_defs, input_defs);
     else
@@ -117,6 +149,12 @@ for iter = 1:AL_settings.n_iter
         x_next = randomVector(input_defs);
         params_next = vectorToParams(x_next, AL_settings.input_defs, input_defs);
         acqInfo = struct('exploreScore', NaN, 'targetCost', NaN, 'strategy', AL_settings.current_strategy);
+
+        acqInfo.globalMeanUncertainty   = NaN;
+        acqInfo.globalMedianUncertainty = NaN;
+        acqInfo.globalP90Uncertainty    = NaN;
+        acqInfo.globalP99Uncertainty    = NaN;
+        acqInfo.globalMaxUncertainty    = NaN;
     end
 
     useGrad = inferGradientActuation(params_next, AL_settings.active_input_names);
