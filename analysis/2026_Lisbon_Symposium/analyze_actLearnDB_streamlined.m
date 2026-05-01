@@ -1,7 +1,7 @@
 %% Evaluate quality of parameter space exploration - streamlined/shared GP version
 clear
 
-load("R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20260429_ATG_highFreq_actLearn_4\actLearnDB.mat")
+load("R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20260430_ATG_highFreq_actLearn_6\actLearnDB.mat")
 
 inputNames  = {'actuation.alpha', 'actuation.relBeta', ...
     'actuation.ampgrad', 'actuation.offsetgrad'};
