@@ -29,20 +29,30 @@ output_defs = actLearn_getActiveDefs(AL_settings.output_defs, AL_settings.active
 input_keys  = {input_defs.key};
 output_keys = {output_defs.key};
 
+
 %% Load or initialize database
 if isfile(dbPath)
-    fprintf('Loading existing database: %s\n', dbPath);
+    fprintf('Loading existing database for training: %s\n', dbPath);
     load(dbPath, 'optDB');
-    if isempty(optDB)
-        recIdx = 1;
-    else
-        recIdx = numel(optDB) + 1;
+
+    if ~exist('optDB','var') || isempty(optDB)
+        optDB = struct([]);
     end
 else
     fprintf('No database found. Starting fresh.\n');
-    optDB = [];
-    recIdx = 1;
+    optDB = struct([]);
 end
+
+% Important:
+% recIdx is the recording/file index for the CURRENT acquisition folder.
+% It must start at 1 for a fresh project/recording, even if optDB already
+% contains previous training data.
+nTrainingDBAtStart = numel(optDB);
+recIdx = 1;
+optResults = struct([]);
+
+fprintf('Loaded %d existing DB entries for training. Current recording index starts at %d.\n', ...
+    nTrainingDBAtStart, recIdx);
 
 % Full training matrices from the database. These may be large.
 X_all = actLearn_extractMatrixFromDB(optDB, input_keys);
@@ -76,17 +86,30 @@ end
 lastSeedingTime = tic;
 
 for iter = 1:AL_settings.n_iter
-    fprintf('\n--- Active Learning Iteration %d (Global Index %d) ---\n', iter, recIdx);
+    fprintf('\n--- Active Learning Iteration %d (Recording Index %d) ---\n', iter, recIdx);
 
     if size(X_all, 1) >= AL_settings.minSamplesForModel
         fprintf('Training %d GP models on %d samples...\n', numel(output_defs), size(X_all, 1));
-        [models, modelStats] = actLearn_trainOutputModels(X_all, Y_all, output_defs, ...
+
+        % GP sees normalised inputs
+        X_model = actLearn_normalizeInputs(X_all, input_defs);
+
+        [models, modelStats] = actLearn_trainOutputModels(X_model, Y_all, output_defs, ...
             'KernelFunction', AL_settings.gp.kernelFunction, ...
             'Standardize', true, ...
             'MinTrain', AL_settings.minSamplesForModel, ...
             'DoLOO', false);
 
-        [x_next, acqInfo] = actLearn_getNextPt_GA(models, input_defs, output_defs, AL_settings);
+        % GA returns physical/design-space point
+        [x_next, acqInfo] = actLearn_getNextPt_GA(models, input_defs, output_defs, AL_settings, X_all);
+
+        fprintf('Acquisition diagnostics: rawUnc=%.4g, antiCluster=%.4g, dNearest=%.4g, d0=%.4g, exploreScore=%.4g\n', ...
+            acqInfo.rawUncertaintyScore, ...
+            acqInfo.antiClusterPenalty, ...
+            acqInfo.nearestDistanceNorm, ...
+            acqInfo.antiClusterScale, ...
+            acqInfo.exploreScore);
+
         params_next = vectorToParams(x_next, AL_settings.input_defs, input_defs);
     else
         fprintf('Bootstrapping: random sampling in active design space...\n');

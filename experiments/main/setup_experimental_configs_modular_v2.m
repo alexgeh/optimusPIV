@@ -15,7 +15,7 @@ recIdx = 1;
 
 
 %% Configure experiment and write config file
-root_dir = "C:\PIV_SANDBOX\20260429_ATG_highFreq_actLearn_4\";
+root_dir = "C:\PIV_SANDBOX\20260430_ATG_highFreq_actLearn_6\";
 davis_exe = "C:\DaVis\win64\DaVis.exe";
 camera_exe = "C:\Users\agehrke\Downloads\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe"; %#ok<NASGU>
 
@@ -105,6 +105,20 @@ AL_settings.minSamplesForModel = 6;
 AL_settings.plotWindow = 50;               % plot only new/current-run values
 AL_settings.pauseBeforeLoop = true;
 AL_settings.gp.kernelFunction = 'ardmatern52';
+
+% Exploration acquisition settings.
+% The GP uncertainty is combined equally across outputs after normalising by
+% each output's training-data scale. The anti-clustering term is adaptive and
+% only suppresses candidates that are too close to existing samples in the
+% normalised input space. It is multiplicative, so it cannot turn a low-
+% uncertainty point into a high-value exploration point.
+AL_settings.explore = struct();
+AL_settings.explore.antiCluster = struct();
+AL_settings.explore.antiCluster.enabled = true;
+AL_settings.explore.antiCluster.scaleFactor = 0.5;     % d0 = scaleFactor * median nearest-neighbour distance
+AL_settings.explore.antiCluster.minScale = 0.02;       % normalised units; numerical guardrail
+AL_settings.explore.antiCluster.maxScale = 0.25;       % normalised units; numerical guardrail
+AL_settings.explore.antiCluster.fallbackScale = 0.10;  % used when there are too few samples
 
 % Choose active design-space variables here. The actuation mode is inferred:
 % - no ampgrad/offsetgrad active and both zero -> synchronous actuation
