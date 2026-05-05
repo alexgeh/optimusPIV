@@ -15,7 +15,7 @@ recIdx = 1;
 
 
 %% Configure experiment and write config file
-root_dir = "C:\PIV_SANDBOX\20260504_ATG_highFreq_actLearn_7\";
+root_dir = "C:\PIV_SANDBOX\20260505_ATG_highFreq_actLearn_9\";
 davis_exe = "C:\DaVis\win64\DaVis.exe";
 camera_exe = "C:\Users\agehrke\Downloads\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe"; %#ok<NASGU>
 
@@ -42,7 +42,7 @@ cset = struct( ...
 % Evaluation parameters
 % These are used by objEval_turbulenceIntensity/turbulenceMetrics.
 evset = struct( ...
-    'targetTI', 0.09, ...
+    'targetTI', 0.20, ...
     'doPlot', true, ...
     'wTI', 0.0599, ...
     'wH1', 0.0026, ...
@@ -99,7 +99,7 @@ initRecordingLog(config.log_path);
 % Main run settings. Keep these here or in the main script so the active
 % learning run can be inspected in one place.
 AL_settings = struct();
-AL_settings.current_strategy = 'explore';  % 'explore' or 'target'
+AL_settings.current_strategy = 'target';   % 'explore' or 'target'
 AL_settings.n_iter = 50;
 AL_settings.minSamplesForModel = 6;
 AL_settings.plotWindow = 50;               % plot only new/current-run values
@@ -123,6 +123,39 @@ AL_settings.explore.antiCluster.fallbackScale = 0.10;  % used when there are too
 AL_settings.explore.globalUncertainty.enabled = true;
 AL_settings.explore.globalUncertainty.nCandidates = 10000;
 AL_settings.explore.globalUncertainty.seed = 1;
+
+% Targeted-optimisation settings.
+% The target objective is implemented in targetCost.m as a soft
+% feasibility-first score:
+%   1) match target outputs within user-defined tolerances;
+%   2) heavily punish the part of the target error outside tolerance;
+%   3) only then minimise lower-is-better penalty outputs such as CV/aniso.
+%
+% Tolerances are in physical output units. Relative tolerances work for
+% nonzero targets, but zero targets need an explicit absolute tolerance.
+AL_settings.targets = struct();
+AL_settings.targets.TI_mean     = 0.20;
+AL_settings.targets.dTIdy_slope = 0.00;
+AL_settings.targets.dUdy_slope  = 3.00;
+
+AL_settings.target = struct();
+AL_settings.target.explorationBonus = 0.0;  % keep zero for first targeted tests
+AL_settings.target.outsidePenalty   = 10;   % extra penalty outside tolerance
+AL_settings.target.gateSharpness    = 10;   % penalty terms activate near targetScore <= 1
+AL_settings.target.relTol           = 0.05; % fallback relative tolerance for nonzero targets
+
+AL_settings.target.tol = struct();
+AL_settings.target.tol.TI_mean     = 0.05 * abs(AL_settings.targets.TI_mean);
+AL_settings.target.tol.dTIdy_slope = 0.02;
+AL_settings.target.tol.dUdy_slope  = 0.30;  % absolute tolerance for zero target; tune for your scaling
+
+% Penalty terms are normalised by the training-data output scale by default.
+% This avoids mixing quantities with different magnitudes without introducing
+% subjective weights. If needed later, explicit physical scales can be added:
+%   AL_settings.target.penaltyScale.CV_U = 0.05;
+%   AL_settings.target.penaltyScale.CV_TI = 0.10;
+%   AL_settings.target.penaltyScale.aniso_mean = 0.05;
+AL_settings.target.penaltyScale = struct();
 
 % Choose active design-space variables here. The actuation mode is inferred:
 % - no ampgrad/offsetgrad active and both zero -> synchronous actuation
@@ -160,12 +193,12 @@ AL_settings.input_defs = input_defs;
 output_defs = struct('name',{},'key',{},'label',{},'role',{}, ...
     'target',{},'targetWeight',{},'exploreWeight',{},'scale',{});
 k = 0;
-k = k+1; output_defs(k) = struct('name','TI_mean',      'key','metrics.TI_mean',      'label','TI mean',       'role','target',  'target',config.EVAL_settings.targetTI, 'targetWeight',1.0, 'exploreWeight',1.0, 'scale','data');
-k = k+1; output_defs(k) = struct('name','aniso_mean',   'key','metrics.aniso_mean',   'label','Anisotropy',    'role','penalty', 'target',0,                         'targetWeight',config.EVAL_settings.wA,  'exploreWeight',1.0, 'scale','data');
-k = k+1; output_defs(k) = struct('name','CV_U',         'key','metrics.CV_U',         'label','CV_U',          'role','penalty', 'target',0,                         'targetWeight',config.EVAL_settings.wH1, 'exploreWeight',1.0, 'scale','data');
-k = k+1; output_defs(k) = struct('name','CV_TI',        'key','metrics.CV_TI',        'label','CV_TI',         'role','penalty', 'target',0,                         'targetWeight',config.EVAL_settings.wH3, 'exploreWeight',1.0, 'scale','data');
-k = k+1; output_defs(k) = struct('name','dUdy_slope',   'key','metrics.dUdy_slope',   'label','dU/dy slope',   'role','target',  'target',0,                         'targetWeight',0.2, 'exploreWeight',1.0, 'scale','data');
-k = k+1; output_defs(k) = struct('name','dTIdy_slope',  'key','metrics.dTIdy_slope',  'label','dTI/dy slope',  'role','target',  'target',0,                         'targetWeight',0.2, 'exploreWeight',1.0, 'scale','data');
+k = k+1; output_defs(k) = struct('name','TI_mean',      'key','metrics.TI_mean',      'label','TI mean',       'role','target',  'target',AL_settings.targets.TI_mean,     'targetWeight',1.0, 'exploreWeight',1.0, 'scale','data');
+k = k+1; output_defs(k) = struct('name','aniso_mean',   'key','metrics.aniso_mean',   'label','Anisotropy',    'role','penalty', 'target',0,                              'targetWeight',1.0, 'exploreWeight',1.0, 'scale','data');
+k = k+1; output_defs(k) = struct('name','CV_U',         'key','metrics.CV_U',         'label','CV_U',          'role','penalty', 'target',0,                              'targetWeight',1.0, 'exploreWeight',1.0, 'scale','data');
+k = k+1; output_defs(k) = struct('name','CV_TI',        'key','metrics.CV_TI',        'label','CV_TI',         'role','penalty', 'target',0,                              'targetWeight',1.0, 'exploreWeight',1.0, 'scale','data');
+k = k+1; output_defs(k) = struct('name','dUdy_slope',   'key','metrics.dUdy_slope',   'label','dU/dy slope',   'role','target',  'target',AL_settings.targets.dUdy_slope,  'targetWeight',1.0, 'exploreWeight',1.0, 'scale','data');
+k = k+1; output_defs(k) = struct('name','dTIdy_slope',  'key','metrics.dTIdy_slope',  'label','dTI/dy slope',  'role','target',  'target',AL_settings.targets.dTIdy_slope,'targetWeight',1.0, 'exploreWeight',1.0, 'scale','data');
 AL_settings.output_defs = output_defs;
 
 % GA/acquisition settings
@@ -176,8 +209,7 @@ AL_settings.ga.PopulationPerVar = 10;
 AL_settings.ga.MaxGenerations = 100;
 AL_settings.ga.UseParallel = false;
 
-% Target mode can optionally retain a small exploration term.
-AL_settings.target.explorationBonus = 0.0;
+% Target mode settings are defined above.
 
 % Attach AL settings to config so every objective call and saved record has
 % one complete run configuration object.

@@ -2,10 +2,10 @@ function [next_x, info] = actLearn_getNextPt_GA(models, input_defs, output_defs,
 %% Select next active-learning point with a GA acquisition function.
 %
 % Inputs
-%   models      : struct array from trainOutputModels in the main script
+%   models      : struct array from active-learning GP training
 %                 Each model is trained on NORMALISED input coordinates.
 %   input_defs  : active input definitions only
-%   output_defs : active output definitions only
+%   output_defs : active output definitions only (kept for interface stability)
 %   AL_settings : active-learning settings from setup/main
 %   X_existing  : existing samples in PHYSICAL/DESIGN coordinates, size n x d
 %
@@ -13,16 +13,15 @@ function [next_x, info] = actLearn_getNextPt_GA(models, input_defs, output_defs,
 %   next_x : vector in the active physical/design-control space
 %   info   : predicted acquisition diagnostics at next_x
 %
-% Exploration score:
-%   equal normalised GP uncertainty across trained outputs
-%       sqrt(mean((sigma / yScale)^2))
-%   multiplied by an adaptive anti-clustering penalty
-%       1 - exp(-(dNearest/d0)^2)
-%   where dNearest and d0 are computed in normalised input coordinates.
+% Strategy = 'explore':
+%   maximise equal normalised GP uncertainty across outputs, multiplied by
+%   an adaptive anti-clustering penalty.
 %
-% The anti-clustering term is multiplicative, so it cannot make a low-
-% uncertainty point attractive. It only suppresses candidates that lie too
-% close to already sampled points during exploration.
+% Strategy = 'target':
+%   minimise targetCost.m, a soft feasibility-first cost that prioritises
+%   target matching before minimising lower-is-better penalty metrics.
+
+    %#ok<INUSD> % output_defs is kept for backwards-compatible interface clarity
 
     if nargin < 5
         X_existing = [];
@@ -52,11 +51,11 @@ function [next_x, info] = actLearn_getNextPt_GA(models, input_defs, output_defs,
             acqFun = @(x) -explorationScore(x, models, input_defs, X_existing_N, antiClusterScale, AL_settings);
 
         case 'target'
-            % Keep target mode mostly exploitation-driven. If desired, the
-            % existing explorationBonus can include the same anti-clustered
-            % exploration score, but default is zero.
+            % GA minimizes targetCost. A small exploration bonus can be kept,
+            % but should normally be zero for the first targeted tests.
+            explorationBonus = getTargetExplorationBonus(AL_settings);
             acqFun = @(x) targetCost(x, models, input_defs, AL_settings) ...
-                - AL_settings.target.explorationBonus .* explorationScore(x, models, input_defs, X_existing_N, antiClusterScale, AL_settings);
+                - explorationBonus .* explorationScore(x, models, input_defs, X_existing_N, antiClusterScale, AL_settings);
 
         otherwise
             error('Unknown active-learning strategy: %s', AL_settings.current_strategy);
@@ -65,15 +64,24 @@ function [next_x, info] = actLearn_getNextPt_GA(models, input_defs, output_defs,
     next_x = ga(acqFun, nVars, [], [], [], [], lb, ub, [], options);
 
     [score, rawUnc, penalty, dNearest] = explorationScore(next_x, models, input_defs, X_existing_N, antiClusterScale, AL_settings);
+    [tCost, tScore, pScore, tViolation, tGate] = targetCost(next_x, models, input_defs, AL_settings);
 
     info = struct();
     info.strategy = AL_settings.current_strategy;
+
+    % Exploration diagnostics at the selected point.
     info.exploreScore = score;
     info.rawUncertaintyScore = rawUnc;
     info.antiClusterPenalty = penalty;
     info.nearestDistanceNorm = dNearest;
     info.antiClusterScale = antiClusterScale;
-    info.targetCost = targetCost(next_x, models, input_defs, AL_settings);
+
+    % Targeted-optimisation diagnostics at the selected point.
+    info.targetCost = tCost;
+    info.targetScore = tScore;
+    info.penaltyScore = pScore;
+    info.targetViolation = tViolation;
+    info.targetGate = tGate;
 end
 
 function [score, uncertaintyScore, distancePenalty, dNearest] = explorationScore(x, models, input_defs, X_existing_N, d0, AL_settings)
@@ -82,17 +90,17 @@ function [score, uncertaintyScore, distancePenalty, dNearest] = explorationScore
     sigmaTerms = [];
 
     for k = 1:numel(models)
-        if ~isfield(models(k), 'gp') || isempty(models(k).gp)
+        if ~isModelUsable(models(k))
             continue
         end
 
         % IMPORTANT: models are trained on normalised inputs.
         [~, sigma] = predict(models(k).gp, xN);
-        scale = max(models(k).yScale, eps);
+        scale = getModelScale(models(k));
 
         % Equal contribution from each output after dimensional normalisation.
-        % Do not use exploreWeight here; this keeps exploration objective
-        % independent of manually chosen output weights.
+        % Do not use exploreWeight here; this keeps exploration independent of
+        % manually chosen output weights.
         sigmaTerms(end+1) = (sigma ./ scale).^2; %#ok<AGROW>
     end
 
@@ -106,35 +114,26 @@ function [score, uncertaintyScore, distancePenalty, dNearest] = explorationScore
     score = uncertaintyScore .* distancePenalty;
 end
 
-function cost = targetCost(x, models, input_defs, AL_settings)
-    xN = actLearn_normalizeInputs(x, input_defs);
-    cost = 0;
-
-    for k = 1:numel(models)
-        if strcmpi(models(k).role, 'diagnostic')
-            continue
-        end
-
-        % IMPORTANT: models are trained on normalised inputs.
-        mu = predict(models(k).gp, xN);
-        scale = max(models(k).yScale, eps);
-        target = getTarget(models(k), AL_settings);
-        err = (mu - target) ./ scale;
-        cost = cost + models(k).targetWeight .* err.^2;
+function tf = isModelUsable(model)
+    tf = isfield(model, 'gp') && ~isempty(model.gp);
+    if tf && isfield(model, 'isTrained')
+        tf = model.isTrained;
     end
 end
 
-function target = getTarget(model, AL_settings)
-    target = model.target;
+function scale = getModelScale(model)
+    scale = 1;
+    if isfield(model, 'yScale') && isfinite(model.yScale) && model.yScale > 0
+        scale = model.yScale;
+    end
+    scale = max(scale, eps);
+end
 
-    % Allow AL_settings.targets to override output_defs targets if you prefer
-    % to keep targets grouped in one struct.
-    if isfield(AL_settings, 'targets') && isstruct(AL_settings.targets)
-        if isfield(AL_settings.targets, model.name)
-            target = AL_settings.targets.(model.name);
-        elseif strcmp(model.name, 'TI_mean') && isfield(AL_settings.targets, 'TI')
-            target = AL_settings.targets.TI;
-        end
+function bonus = getTargetExplorationBonus(AL_settings)
+    bonus = 0;
+    if isfield(AL_settings, 'target') && isfield(AL_settings.target, 'explorationBonus') ...
+            && ~isempty(AL_settings.target.explorationBonus)
+        bonus = AL_settings.target.explorationBonus;
     end
 end
 
