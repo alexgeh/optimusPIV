@@ -2,6 +2,7 @@
 clear
 
 load("R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20260429_ATG_highFreq_actLearn_4\actLearnDB.mat")
+% load("R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\optDB.mat")
 
 inputNames  = {'actuation.alpha', 'actuation.relBeta', ...
     'actuation.ampgrad', 'actuation.offsetgrad'}; 

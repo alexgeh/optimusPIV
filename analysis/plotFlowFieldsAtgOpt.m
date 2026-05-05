@@ -5,10 +5,11 @@ clear
 
 %% Processing parameters:
 localPC = 1; % 1: office PC, 2: Legion (laptop)
-optID = 3;
+optID = 7;
 plotPIV = false; % Plot PIV - !! Will take VEEERY long !!
 % L = 0.123; % Characteristic length [m], diagonal length of panels
-L = 0.087 / 2; % Characteristic length [m], width of panels
+% L = 0.087 / 2; % Characteristic length [m], width of panels
+L = 0.087; % Characteristic length [m], width of panels
 PIVdx = 0.001630007922649; % Pixel length of PIV frames
 
 

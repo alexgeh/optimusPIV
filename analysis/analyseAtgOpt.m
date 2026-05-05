@@ -8,8 +8,8 @@ localPC = 1; % 1: office PC, 2: Legion (laptop)
 optID = 10; % Specific case to look at
 acqDate = 20260424;
 plotPIV = false; % Plot PIV - !! Will take VEEERY long !!
-L = 0.123; % Characteristic length [m], diagonal length of panels
-% L = 0.087; % Characteristic length [m], width of panels
+% L = 0.123; % Characteristic length [m], diagonal length of panels
+L = 0.087; % Characteristic length [m], width of panels
 
 % Set up local file directories:
 if localPC == 1

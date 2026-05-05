@@ -1,7 +1,9 @@
 %% Evaluate quality of parameter space exploration - streamlined/shared GP version
 clear
 
-load("R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20260430_ATG_highFreq_actLearn_6\actLearnDB.mat")
+load("R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20260504_ATG_highFreq_actLearn_7\actLearnDB.mat")
+
+% optDB = optDB(51:end);
 
 inputNames  = {'actuation.alpha', 'actuation.relBeta', ...
     'actuation.ampgrad', 'actuation.offsetgrad'};
@@ -102,7 +104,10 @@ gpHist = diagnoseGPHistory_local(Xn, Y, outputNames, ...
     'KernelFunction', gpStats.kernelFunction, ...
     'StartAt', 8, ...
     'Step', 2, ...
-    'NCandidates', 3000);
+    'NCandidates', 10000, ...
+    'Seed', 1, ...
+    'UseFinalOutputScale', true);
+
 
 %% Conditional response slices
 plotGPSlices2D_local(models, X, Y, inputNames, outputNames, inputRanges, ...
@@ -124,7 +129,7 @@ function uncDiag = diagnoseUncertaintyContributions_local(models, gpStats, input
             continue
         end
         [~, sd] = predict(models(m).gp, Xcand);
-        sigmaNorm(:,m) = models(m).exploreWeight .* sd ./ max(models(m).yScale, eps);
+        sigmaNorm(:,m) = sd ./ max(models(m).yScale, eps);
     end
 
     scoreSquared = sigmaNorm.^2;
@@ -151,29 +156,58 @@ function uncDiag = diagnoseUncertaintyContributions_local(models, gpStats, input
 end
 
 function gpHist = diagnoseGPHistory_local(Xn, Y, outputNames, varargin)
+%% Reconstruct global exploration uncertainty history on a fixed candidate set.
+%
+% This is different from the online selected-point exploreScore.
+% It asks: if we refit the GP using the first n measurements, how uncertain
+% are the models over the same fixed cloud of candidate points?
+
     p = inputParser;
     addParameter(p, 'KernelFunction', 'ardmatern52');
     addParameter(p, 'StartAt', 8);
     addParameter(p, 'Step', 2);
-    addParameter(p, 'NCandidates', 3000);
+    addParameter(p, 'NCandidates', 10000);
+    addParameter(p, 'Seed', 1);
+    addParameter(p, 'UseFinalOutputScale', true);
     parse(p, varargin{:});
 
     nPts = size(Xn,1);
     nInputs = size(Xn,2);
     nOutputs = size(Y,2);
+
     nTrainList = p.Results.StartAt:p.Results.Step:nPts;
     if nTrainList(end) ~= nPts
         nTrainList = [nTrainList, nPts];
     end
-    Xcand = rand(p.Results.NCandidates, nInputs);
 
-    meanUnc = NaN(numel(nTrainList), nOutputs);
-    maxUnc = NaN(numel(nTrainList), nOutputs);
+    % Fixed candidate cloud in normalised input space.
+    % This makes the uncertainty history comparable across iterations.
+    s = RandStream('mt19937ar', 'Seed', p.Results.Seed);
+    Xcand = rand(s, p.Results.NCandidates, nInputs);
+
+    % Use final output scales for the history so the denominator does not
+    % change as n increases.
+    if p.Results.UseFinalOutputScale
+        yScaleRef = std(Y, 0, 1, 'omitnan');
+        yScaleRef(~isfinite(yScaleRef) | yScaleRef <= 0) = 1;
+    else
+        yScaleRef = NaN(1, nOutputs);
+    end
+
+    meanUncByOutput = NaN(numel(nTrainList), nOutputs);
+    maxUncByOutput  = NaN(numel(nTrainList), nOutputs);
     lenScale = NaN(numel(nTrainList), nOutputs, nInputs);
+
+    globalMean   = NaN(numel(nTrainList),1);
+    globalMedian = NaN(numel(nTrainList),1);
+    globalP90    = NaN(numel(nTrainList),1);
+    globalP99    = NaN(numel(nTrainList),1);
+    globalMax    = NaN(numel(nTrainList),1);
 
     for ii = 1:numel(nTrainList)
         n = nTrainList(ii);
-        fprintf('GP history: n = %d / %d\n', n, nPts);
+        fprintf('Global uncertainty history: n = %d / %d\n', n, nPts);
+
         [mods, stats] = actLearn_trainOutputModels(Xn(1:n,:), Y(1:n,:), outputNames, ...
             'KernelFunction', p.Results.KernelFunction, ...
             'Standardize', true, ...
@@ -181,34 +215,85 @@ function gpHist = diagnoseGPHistory_local(Xn, Y, outputNames, varargin)
             'DoLOO', false);
 
         lenScale(ii,:,:) = stats.lengthScales;
+
+        sigmaNorm = NaN(size(Xcand,1), nOutputs);
+
         for m = 1:nOutputs
             if ~mods(m).isTrained
                 continue
             end
+
             [~, sd] = predict(mods(m).gp, Xcand);
-            sdNorm = sd ./ max(mods(m).yScale, eps);
-            meanUnc(ii,m) = mean(sdNorm, 'omitnan');
-            maxUnc(ii,m) = max(sdNorm, [], 'omitnan');
+
+            if p.Results.UseFinalOutputScale
+                yScale = yScaleRef(m);
+            else
+                yScale = mods(m).yScale;
+                if ~isfinite(yScale) || yScale <= 0
+                    yScale = 1;
+                end
+            end
+
+            % Equal normalised contribution from each output.
+            sigmaNorm(:,m) = sd ./ max(yScale, eps);
+
+            meanUncByOutput(ii,m) = mean(sigmaNorm(:,m), 'omitnan');
+            maxUncByOutput(ii,m)  = max(sigmaNorm(:,m), [], 'omitnan');
         end
+
+        % Combined global multi-output uncertainty over the fixed candidate set.
+        globalScore = sqrt(mean(sigmaNorm.^2, 2, 'omitnan'));
+
+        globalMean(ii)   = mean(globalScore, 'omitnan');
+        globalMedian(ii) = median(globalScore, 'omitnan');
+        globalP90(ii)    = prctile(globalScore, 90);
+        globalP99(ii)    = prctile(globalScore, 99);
+        globalMax(ii)    = max(globalScore, [], 'omitnan');
     end
 
-    gpHist = struct('nTrain', nTrainList(:), 'meanUncertainty', meanUnc, ...
-        'maxUncertainty', maxUnc, 'lengthScales', lenScale);
+    gpHist = struct();
+    gpHist.nTrain = nTrainList(:);
+    gpHist.meanUncertaintyByOutput = meanUncByOutput;
+    gpHist.maxUncertaintyByOutput = maxUncByOutput;
+    gpHist.globalMeanUncertainty = globalMean;
+    gpHist.globalMedianUncertainty = globalMedian;
+    gpHist.globalP90Uncertainty = globalP90;
+    gpHist.globalP99Uncertainty = globalP99;
+    gpHist.globalMaxUncertainty = globalMax;
+    gpHist.lengthScales = lenScale;
+    gpHist.Xcand = Xcand;
 
-    figure('Name','GP history: mean normalised uncertainty');
-    plot(gpHist.nTrain, gpHist.meanUncertainty, 'o-', 'LineWidth', 1.2);
+    % Main convergence plot
+    figure('Name','Global exploration uncertainty history');
+    plot(gpHist.nTrain, globalMean, 'o-', 'LineWidth', 1.5); hold on;
+    plot(gpHist.nTrain, globalMedian, 'o-', 'LineWidth', 1.2);
+    plot(gpHist.nTrain, globalP90, 'o-', 'LineWidth', 1.2);
+    plot(gpHist.nTrain, globalP99, 'o-', 'LineWidth', 1.2);
+    plot(gpHist.nTrain, globalMax, 'o-', 'LineWidth', 1.2);
+    hold off;
+
+    xlabel('Number of training points');
+    ylabel('Equal-normalised predictive uncertainty');
+    legend({'Mean','Median','P90','P99','Max'}, 'Location','best');
+    title('Global GP uncertainty over fixed candidate set');
+    grid on;
+
+    % Per-output mean uncertainty
+    figure('Name','Global uncertainty history by output');
+    plot(gpHist.nTrain, meanUncByOutput, 'o-', 'LineWidth', 1.2);
     xlabel('Number of training points');
     ylabel('Mean predictive sd / output scale');
     legend(outputNames, 'Interpreter','none', 'Location','best');
-    title('Mean GP uncertainty over candidate space');
+    title('Mean GP uncertainty by output over fixed candidate set');
     grid on;
 
-    figure('Name','GP history: max normalised uncertainty');
-    plot(gpHist.nTrain, gpHist.maxUncertainty, 'o-', 'LineWidth', 1.2);
+    % Per-output worst-case uncertainty
+    figure('Name','Max uncertainty history by output');
+    plot(gpHist.nTrain, maxUncByOutput, 'o-', 'LineWidth', 1.2);
     xlabel('Number of training points');
     ylabel('Max predictive sd / output scale');
     legend(outputNames, 'Interpreter','none', 'Location','best');
-    title('Max GP uncertainty over candidate space');
+    title('Maximum GP uncertainty by output over fixed candidate set');
     grid on;
 end
 
