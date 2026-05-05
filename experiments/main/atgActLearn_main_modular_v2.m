@@ -175,10 +175,27 @@ for iter = 1:AL_settings.n_iter
     Y_run = [Y_run; new_Y]; %#ok<AGROW>
 
     measuredScore = measuredTargetScore(new_Y, output_defs, models);
+
+    % Update acquisition history scores:
     history.iter(end+1,1) = iter;
     history.globalIdx(end+1,1) = recIdx-1;
-    history.exploreScore(end+1,1) = acqInfo.exploreScore;
-    history.targetCostPred(end+1,1) = acqInfo.targetCost;
+
+    history.exploreScore(end+1,1)          = getAcqField(acqInfo, 'exploreScore', NaN);
+    history.rawUncertaintyScore(end+1,1)   = getAcqField(acqInfo, 'rawUncertaintyScore', NaN);
+    history.antiClusterPenalty(end+1,1)    = getAcqField(acqInfo, 'antiClusterPenalty', NaN);
+    history.nearestDistanceNorm(end+1,1)   = getAcqField(acqInfo, 'nearestDistanceNorm', NaN);
+    history.antiClusterScale(end+1,1)      = getAcqField(acqInfo, 'antiClusterScale', NaN);
+
+    history.globalMeanUncertainty(end+1,1)   = getAcqField(acqInfo, 'globalMeanUncertainty', NaN);
+    history.globalMedianUncertainty(end+1,1) = getAcqField(acqInfo, 'globalMedianUncertainty', NaN);
+    history.globalP90Uncertainty(end+1,1)    = getAcqField(acqInfo, 'globalP90Uncertainty', NaN);
+    history.globalP99Uncertainty(end+1,1)    = getAcqField(acqInfo, 'globalP99Uncertainty', NaN);
+    history.globalMaxUncertainty(end+1,1)    = getAcqField(acqInfo, 'globalMaxUncertainty', NaN);
+
+    history.targetCostPred(end+1,1)   = getAcqField(acqInfo, 'targetCost', NaN);
+    history.targetScore(end+1,1)      = getAcqField(acqInfo, 'targetScore', NaN);
+    history.penaltyScore(end+1,1)     = getAcqField(acqInfo, 'penaltyScore', NaN);
+    history.targetViolation(end+1,1)  = getAcqField(acqInfo, 'targetViolation', NaN);
     history.targetCostMeasured(end+1,1) = measuredScore;
 
     % Append full result to local DB and save at every iteration.
@@ -309,9 +326,33 @@ end
 
 function history = initHistory()
     history = struct();
+
     history.iter = [];
     history.globalIdx = [];
+
     history.exploreScore = [];
+    history.rawUncertaintyScore = [];
+    history.antiClusterPenalty = [];
+    history.nearestDistanceNorm = [];
+    history.antiClusterScale = [];
+
+    history.globalMeanUncertainty = [];
+    history.globalMedianUncertainty = [];
+    history.globalP90Uncertainty = [];
+    history.globalP99Uncertainty = [];
+    history.globalMaxUncertainty = [];
+
     history.targetCostPred = [];
+    history.targetScore = [];
+    history.penaltyScore = [];
+    history.targetViolation = [];
     history.targetCostMeasured = [];
+end
+
+function val = getAcqField(acqInfo, fieldName, defaultVal)
+    if isstruct(acqInfo) && isfield(acqInfo, fieldName) && ~isempty(acqInfo.(fieldName))
+        val = acqInfo.(fieldName);
+    else
+        val = defaultVal;
+    end
 end

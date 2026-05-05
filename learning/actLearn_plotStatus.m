@@ -72,77 +72,100 @@ grid on;
 subplot(2,2,3);
 hold on;
 
+hIdx = max(1, numel(history.iter)-nKeep+1):numel(history.iter);
 isExploreMode = contains(lower(AL_settings.current_strategy), 'explore');
 
-if isExploreMode
-    selectedExplore = getFieldOrNaN(acqHistory, 'exploreScore');
-    rawUnc          = getFieldOrNaN(acqHistory, 'rawUncertaintyScore');
-    antiCluster     = getFieldOrNaN(acqHistory, 'antiClusterPenalty');
+if ~isempty(hIdx)
 
-    globalMean   = getFieldOrNaN(acqHistory, 'globalMeanUncertainty');
-    globalMedian = getFieldOrNaN(acqHistory, 'globalMedianUncertainty');
-    globalP90    = getFieldOrNaN(acqHistory, 'globalP90Uncertainty');
-    globalP99    = getFieldOrNaN(acqHistory, 'globalP99Uncertainty');
+    if isExploreMode
+        selectedExplore = getHistoryField(history, 'exploreScore', hIdx);
+        rawUnc          = getHistoryField(history, 'rawUncertaintyScore', hIdx);
+        antiCluster     = getHistoryField(history, 'antiClusterPenalty', hIdx);
 
-    plot(iterVec, selectedExplore, 'o-', 'DisplayName', 'selected explore score');
-    hold on;
-    plot(iterVec, globalMean, 's-', 'DisplayName', 'global mean uncertainty');
-    plot(iterVec, globalMedian, 'd-', 'DisplayName', 'global median uncertainty');
-    plot(iterVec, globalP90, '^-', 'DisplayName', 'global P90 uncertainty');
-    plot(iterVec, globalP99, 'v-', 'DisplayName', 'global P99 uncertainty');
-    hold off;
+        globalMean   = getHistoryField(history, 'globalMeanUncertainty', hIdx);
+        globalMedian = getHistoryField(history, 'globalMedianUncertainty', hIdx);
+        globalP90    = getHistoryField(history, 'globalP90Uncertainty', hIdx);
+        globalP99    = getHistoryField(history, 'globalP99Uncertainty', hIdx);
 
-    xlabel('Current run iteration');
-    ylabel('Normalised uncertainty');
-    title('Exploration convergence');
-    legend('Location','best');
-    grid on;
-else
-
-    hIdx = max(1, numel(history.iter)-nKeep+1):numel(history.iter);
-
-    if ~isempty(hIdx)
-        if any(isfinite(history.exploreScore(hIdx)))
-            plot(history.iter(hIdx), history.exploreScore(hIdx), '-o', ...
-                'DisplayName', 'Exploration score = uncertainty × penalty');
+        if any(isfinite(selectedExplore))
+            plot(history.iter(hIdx), selectedExplore, '-o', ...
+                'DisplayName', 'selected explore score');
         end
 
-        if isfield(history, 'rawUncertaintyScore') && any(isfinite(history.rawUncertaintyScore(hIdx)))
-            plot(history.iter(hIdx), history.rawUncertaintyScore(hIdx), '--o', ...
-                'DisplayName', 'Raw uncertainty score');
+        if any(isfinite(globalMean))
+            plot(history.iter(hIdx), globalMean, '-s', ...
+                'DisplayName', 'global mean uncertainty');
         end
 
-        if isfield(history, 'antiClusterPenalty') && any(isfinite(history.antiClusterPenalty(hIdx)))
-            plot(history.iter(hIdx), history.antiClusterPenalty(hIdx), '--x', ...
-                'DisplayName', 'Anti-cluster penalty');
+        if any(isfinite(globalMedian))
+            plot(history.iter(hIdx), globalMedian, '-d', ...
+                'DisplayName', 'global median uncertainty');
         end
 
-        % Target scores are only meaningful in target/optimisation mode.
-        % They are often much larger than exploration scores, so suppress them
-        % during exploration to keep the exploration trends readable.
-        if ~isExploreMode
-            if isfield(history, 'targetCostPred') && any(isfinite(history.targetCostPred(hIdx)))
-                plot(history.iter(hIdx), history.targetCostPred(hIdx), '-s', ...
-                    'DisplayName', 'Predicted target cost');
-            end
-
-            if isfield(history, 'targetCostMeasured') && any(isfinite(history.targetCostMeasured(hIdx)))
-                plot(history.iter(hIdx), history.targetCostMeasured(hIdx), '-d', ...
-                    'DisplayName', 'Measured target score');
-            end
+        if any(isfinite(globalP90))
+            plot(history.iter(hIdx), globalP90, '-^', ...
+                'DisplayName', 'global P90 uncertainty');
         end
+
+        if any(isfinite(globalP99))
+            plot(history.iter(hIdx), globalP99, '-v', ...
+                'DisplayName', 'global P99 uncertainty');
+        end
+
+        if any(isfinite(rawUnc))
+            plot(history.iter(hIdx), rawUnc, '--', ...
+                'DisplayName', 'raw selected uncertainty');
+        end
+
+        if any(isfinite(antiCluster))
+            plot(history.iter(hIdx), antiCluster, ':', ...
+                'DisplayName', 'anti-cluster penalty');
+        end
+
+        title('Exploration convergence');
+        ylabel('Normalised uncertainty');
+
+    else
+        targetCostPred   = getHistoryField(history, 'targetCostPred', hIdx);
+        targetScore      = getHistoryField(history, 'targetScore', hIdx);
+        penaltyScore     = getHistoryField(history, 'penaltyScore', hIdx);
+        targetViolation  = getHistoryField(history, 'targetViolation', hIdx);
+        measuredScore    = getHistoryField(history, 'targetCostMeasured', hIdx);
+
+        if any(isfinite(targetCostPred))
+            plot(history.iter(hIdx), targetCostPred, '-s', ...
+                'DisplayName', 'predicted total cost');
+        end
+
+        if any(isfinite(targetScore))
+            plot(history.iter(hIdx), targetScore, '-o', ...
+                'DisplayName', 'predicted target score');
+        end
+
+        if any(isfinite(targetViolation))
+            plot(history.iter(hIdx), targetViolation, '-x', ...
+                'DisplayName', 'target violation');
+        end
+
+        if any(isfinite(penaltyScore))
+            plot(history.iter(hIdx), penaltyScore, '-^', ...
+                'DisplayName', 'predicted CV/aniso penalty');
+        end
+
+        if any(isfinite(measuredScore))
+            plot(history.iter(hIdx), measuredScore, '-d', ...
+                'DisplayName', 'measured target score');
+        end
+
+        title('Targeted optimisation progress');
+        ylabel('Dimensionless cost / score');
     end
 end
 
-if isExploreMode
-    title('Exploration progress');
-else
-    title('Progress indicator');
-end
 xlabel('Iteration');
-ylabel('Dimensionless score');
 legend('Location','best');
 grid on;
+
 
 %% 4) Sampling map in first two active dimensions
 subplot(2,2,4);
@@ -195,7 +218,6 @@ for k = 1:size(Y,2)
 end
 end
 
-
 function values = getFieldOrNaN(S, fieldName)
 
     n = numel(S);
@@ -206,4 +228,22 @@ function values = getFieldOrNaN(S, fieldName)
             values(i) = S(i).(fieldName);
         end
     end
+end
+
+function values = getHistoryField(history, fieldName, idx)
+
+    values = NaN(numel(idx),1);
+
+    if ~isstruct(history) || ~isfield(history, fieldName)
+        return
+    end
+
+    raw = history.(fieldName);
+
+    if isempty(raw)
+        return
+    end
+
+    valid = idx <= numel(raw);
+    values(valid) = raw(idx(valid));
 end

@@ -15,7 +15,7 @@ recIdx = 1;
 
 
 %% Configure experiment and write config file
-root_dir = "C:\PIV_SANDBOX\20260430_ATG_highFreq_actLearn_6\";
+root_dir = "C:\PIV_SANDBOX\20260504_ATG_highFreq_actLearn_7\";
 davis_exe = "C:\DaVis\win64\DaVis.exe";
 camera_exe = "C:\Users\agehrke\Downloads\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe"; %#ok<NASGU>
 
