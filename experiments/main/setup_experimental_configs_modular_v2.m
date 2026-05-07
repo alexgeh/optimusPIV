@@ -15,7 +15,7 @@ recIdx = 1;
 
 
 %% Configure experiment and write config file
-root_dir = "C:\PIV_SANDBOX\20260505_ATG_highFreq_actLearn_9\";
+root_dir = "C:\PIV_SANDBOX\20260507_ATG_highFreq_actLearn_10\";
 davis_exe = "C:\DaVis\win64\DaVis.exe";
 camera_exe = "C:\Users\agehrke\Downloads\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe"; %#ok<NASGU>
 
@@ -136,7 +136,7 @@ AL_settings.explore.globalUncertainty.seed = 1;
 AL_settings.targets = struct();
 AL_settings.targets.TI_mean     = 0.20;
 AL_settings.targets.dTIdy_slope = 0.00;
-AL_settings.targets.dUdy_slope  = 3.00;
+AL_settings.targets.dUdy_slope  = 2.00;
 
 AL_settings.target = struct();
 AL_settings.target.explorationBonus = 0.0;  % keep zero for first targeted tests
@@ -146,7 +146,7 @@ AL_settings.target.relTol           = 0.05; % fallback relative tolerance for no
 
 AL_settings.target.tol = struct();
 AL_settings.target.tol.TI_mean     = 0.05 * abs(AL_settings.targets.TI_mean);
-AL_settings.target.tol.dTIdy_slope = 0.02;
+AL_settings.target.tol.dTIdy_slope = 0.03;
 AL_settings.target.tol.dUdy_slope  = 0.30;  % absolute tolerance for zero target; tune for your scaling
 
 % Penalty terms are normalised by the training-data output scale by default.
