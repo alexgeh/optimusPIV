@@ -15,7 +15,7 @@ recIdx = 1;
 
 
 %% Configure experiment and write config file
-root_dir = "C:\PIV_SANDBOX\20260507_ATG_highFreq_actLearn_10\";
+root_dir = "C:\PIV_SANDBOX\20260508_ATG_highFreq_actLearn_12\";
 davis_exe = "C:\DaVis\win64\DaVis.exe";
 camera_exe = "C:\Users\agehrke\Downloads\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe"; %#ok<NASGU>
 
@@ -135,8 +135,8 @@ AL_settings.explore.globalUncertainty.seed = 1;
 % nonzero targets, but zero targets need an explicit absolute tolerance.
 AL_settings.targets = struct();
 AL_settings.targets.TI_mean     = 0.20;
-AL_settings.targets.dTIdy_slope = 0.00;
-AL_settings.targets.dUdy_slope  = 2.00;
+AL_settings.targets.dTIdy_slope = 0;
+AL_settings.targets.dUdy_slope  = 0.00;
 
 AL_settings.target = struct();
 AL_settings.target.explorationBonus = 0.0;  % keep zero for first targeted tests
