@@ -148,7 +148,21 @@ for iter = 1:AL_settings.n_iter
         models = [];
         x_next = randomVector(input_defs);
         params_next = vectorToParams(x_next, AL_settings.input_defs, input_defs);
-        acqInfo = struct('exploreScore', NaN, 'targetCost', NaN, 'strategy', AL_settings.current_strategy);
+        acqInfo = struct( ...
+            'exploreScore', NaN, ...
+            'targetCostPred', NaN, ...
+            'targetScorePred', NaN, ...
+            'penaltyScorePred', NaN, ...
+            'targetViolationPred', NaN, ...
+            'targetGatePred', NaN, ...
+            'acquisitionValuePred', NaN, ...
+            'strategy', AL_settings.current_strategy);
+
+        % Backward-compatible aliases for any older helper/plot code.
+        acqInfo.targetCost = NaN;
+        acqInfo.targetScore = NaN;
+        acqInfo.penaltyScore = NaN;
+        acqInfo.targetViolation = NaN;
 
         acqInfo.globalMeanUncertainty   = NaN;
         acqInfo.globalMedianUncertainty = NaN;
@@ -174,7 +188,17 @@ for iter = 1:AL_settings.n_iter
     X_run = [X_run; new_X]; %#ok<AGROW>
     Y_run = [Y_run; new_Y]; %#ok<AGROW>
 
-    measuredScore = measuredTargetScore(new_Y, output_defs, models);
+    % Evaluate measured target diagnostics immediately after the experiment
+    % using the same canonical objective terms as targetCost.m. These values
+    % are stored in history/results/DB and are only displayed by the plotter.
+    [measDiag, measDetail] = actLearn_evalMeasuredTargetObjective( ...
+        new_Y, output_defs, AL_settings, models);
+
+    % Attach predicted and measured target diagnostics to the record before
+    % saving to optDB. They are stored under metrics to avoid changing the
+    % top-level optDB schema.
+    res = attachTargetDiagnosticsToRecord(res, acqInfo, measDiag, measDetail);
+    optResults(recIdx-1) = res;
 
     % Update acquisition history scores:
     history.iter(end+1,1) = iter;
@@ -192,11 +216,28 @@ for iter = 1:AL_settings.n_iter
     history.globalP99Uncertainty(end+1,1)    = getAcqField(acqInfo, 'globalP99Uncertainty', NaN);
     history.globalMaxUncertainty(end+1,1)    = getAcqField(acqInfo, 'globalMaxUncertainty', NaN);
 
-    history.targetCostPred(end+1,1)   = getAcqField(acqInfo, 'targetCost', NaN);
-    history.targetScore(end+1,1)      = getAcqField(acqInfo, 'targetScore', NaN);
-    history.penaltyScore(end+1,1)     = getAcqField(acqInfo, 'penaltyScore', NaN);
-    history.targetViolation(end+1,1)  = getAcqField(acqInfo, 'targetViolation', NaN);
-    history.targetCostMeasured(end+1,1) = measuredScore;
+    history.targetCostPred(end+1,1) = getAcqField(acqInfo, ...
+        'targetCostPred', getAcqField(acqInfo, 'targetCost', NaN));
+    history.targetScorePred(end+1,1) = getAcqField(acqInfo, ...
+        'targetScorePred', getAcqField(acqInfo, 'targetScore', NaN));
+    history.penaltyScorePred(end+1,1) = getAcqField(acqInfo, ...
+        'penaltyScorePred', getAcqField(acqInfo, 'penaltyScore', NaN));
+    history.targetViolationPred(end+1,1) = getAcqField(acqInfo, ...
+        'targetViolationPred', getAcqField(acqInfo, 'targetViolation', NaN));
+    history.targetGatePred(end+1,1) = getAcqField(acqInfo, 'targetGatePred', NaN);
+    history.acquisitionValuePred(end+1,1) = getAcqField(acqInfo, 'acquisitionValuePred', NaN);
+    history.explorationBonus(end+1,1) = getAcqField(acqInfo, 'explorationBonus', NaN);
+
+    history.targetCostMeasured(end+1,1)      = measDiag.targetCostMeasured;
+    history.targetScoreMeasured(end+1,1)     = measDiag.targetScoreMeasured;
+    history.penaltyScoreMeasured(end+1,1)    = measDiag.penaltyScoreMeasured;
+    history.targetViolationMeasured(end+1,1) = measDiag.targetViolationMeasured;
+    history.targetGateMeasured(end+1,1)      = measDiag.targetGateMeasured;
+
+    % Backward-compatible aliases for older plotting code.
+    history.targetScore(end+1,1)     = history.targetScorePred(end);
+    history.penaltyScore(end+1,1)    = history.penaltyScorePred(end);
+    history.targetViolation(end+1,1) = history.targetViolationPred(end);
 
     % Append full result to local DB and save at every iteration.
     if isempty(optDB)
@@ -292,37 +333,6 @@ function txt = modeLabel(useGrad)
     end
 end
 
-function score = measuredTargetScore(yRow, output_defs, models)
-    score = NaN;
-    if isempty(yRow) || all(~isfinite(yRow))
-        return
-    end
-
-    terms = [];
-    for m = 1:numel(output_defs)
-        if strcmpi(output_defs(m).role, 'diagnostic') || ~isfinite(yRow(m))
-            continue
-        end
-
-        yScale = findModelScale(models, output_defs(m).name, yRow(m));
-        err = (yRow(m) - output_defs(m).target) ./ max(yScale, eps);
-        terms(end+1) = output_defs(m).targetWeight .* err.^2; %#ok<AGROW>
-    end
-
-    if ~isempty(terms)
-        score = sum(terms);
-    end
-end
-
-function yScale = findModelScale(models, name, yVal)
-    yScale = max(abs(yVal), 1);
-    for k = 1:numel(models)
-        if strcmp(models(k).name, name)
-            yScale = models(k).yScale;
-            return
-        end
-    end
-end
 
 function history = initHistory()
     history = struct();
@@ -343,10 +353,50 @@ function history = initHistory()
     history.globalMaxUncertainty = [];
 
     history.targetCostPred = [];
+    history.targetScorePred = [];
+    history.penaltyScorePred = [];
+    history.targetViolationPred = [];
+    history.targetGatePred = [];
+    history.acquisitionValuePred = [];
+    history.explorationBonus = [];
+
+    history.targetCostMeasured = [];
+    history.targetScoreMeasured = [];
+    history.penaltyScoreMeasured = [];
+    history.targetViolationMeasured = [];
+    history.targetGateMeasured = [];
+
+    % Backward-compatible aliases for older plotting code.
     history.targetScore = [];
     history.penaltyScore = [];
     history.targetViolation = [];
-    history.targetCostMeasured = [];
+end
+
+function record = attachTargetDiagnosticsToRecord(record, acqInfo, measDiag, measDetail)
+    if ~isfield(record, 'metrics') || ~isstruct(record.metrics)
+        record.metrics = struct();
+    end
+
+    record.metrics.targetCostPred = getAcqField(acqInfo, ...
+        'targetCostPred', getAcqField(acqInfo, 'targetCost', NaN));
+    record.metrics.targetScorePred = getAcqField(acqInfo, ...
+        'targetScorePred', getAcqField(acqInfo, 'targetScore', NaN));
+    record.metrics.penaltyScorePred = getAcqField(acqInfo, ...
+        'penaltyScorePred', getAcqField(acqInfo, 'penaltyScore', NaN));
+    record.metrics.targetViolationPred = getAcqField(acqInfo, ...
+        'targetViolationPred', getAcqField(acqInfo, 'targetViolation', NaN));
+    record.metrics.targetGatePred = getAcqField(acqInfo, 'targetGatePred', NaN);
+    record.metrics.acquisitionValuePred = getAcqField(acqInfo, 'acquisitionValuePred', NaN);
+    record.metrics.explorationBonus = getAcqField(acqInfo, 'explorationBonus', NaN);
+
+    record.metrics.targetCostMeasured = measDiag.targetCostMeasured;
+    record.metrics.targetScoreMeasured = measDiag.targetScoreMeasured;
+    record.metrics.penaltyScoreMeasured = measDiag.penaltyScoreMeasured;
+    record.metrics.targetViolationMeasured = measDiag.targetViolationMeasured;
+    record.metrics.targetGateMeasured = measDiag.targetGateMeasured;
+
+    record.metrics.targetDetailPred = getAcqField(acqInfo, 'targetDetailPred', struct());
+    record.metrics.targetDetailMeasured = measDetail;
 end
 
 function val = getAcqField(acqInfo, fieldName, defaultVal)

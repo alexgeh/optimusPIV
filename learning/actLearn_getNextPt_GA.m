@@ -45,14 +45,17 @@ function [next_x, info] = actLearn_getNextPt_GA(models, input_defs, output_defs,
     antiClusterScale = estimateAntiClusterScale(X_existing_N, AL_settings);
 
     strategy = lower(AL_settings.current_strategy);
+    explorationBonus = 0;
+
     switch strategy
         case 'explore'
             % GA minimizes, so return negative score.
             acqFun = @(x) -explorationScore(x, models, input_defs, X_existing_N, antiClusterScale, AL_settings);
 
         case 'target'
-            % GA minimizes targetCost. A small exploration bonus can be kept,
-            % but should normally be zero for the first targeted tests.
+            % GA minimizes the predicted total target cost. A small
+            % exploration bonus can be kept, but should normally be zero for
+            % the first targeted tests.
             explorationBonus = getTargetExplorationBonus(AL_settings);
             acqFun = @(x) targetCost(x, models, input_defs, AL_settings) ...
                 - explorationBonus .* explorationScore(x, models, input_defs, X_existing_N, antiClusterScale, AL_settings);
@@ -64,7 +67,13 @@ function [next_x, info] = actLearn_getNextPt_GA(models, input_defs, output_defs,
     next_x = ga(acqFun, nVars, [], [], [], [], lb, ub, [], options);
 
     [score, rawUnc, penalty, dNearest] = explorationScore(next_x, models, input_defs, X_existing_N, antiClusterScale, AL_settings);
-    [tCost, tScore, pScore, tViolation, tGate] = targetCost(next_x, models, input_defs, AL_settings);
+    [tCost, tScore, pScore, tViolation, tGate, tDetail] = targetCost(next_x, models, input_defs, AL_settings);
+
+    if strcmpi(strategy, 'target')
+        acquisitionValuePred = tCost - explorationBonus .* score;
+    else
+        acquisitionValuePred = -score;
+    end
 
     info = struct();
     info.strategy = AL_settings.current_strategy;
@@ -77,6 +86,19 @@ function [next_x, info] = actLearn_getNextPt_GA(models, input_defs, output_defs,
     info.antiClusterScale = antiClusterScale;
 
     % Targeted-optimisation diagnostics at the selected point.
+    % These are predicted values from the surrogate models.
+    info.targetCostPred = tCost;
+    info.targetScorePred = tScore;
+    info.penaltyScorePred = pScore;
+    info.targetViolationPred = tViolation;
+    info.targetGatePred = tGate;
+    info.targetDetailPred = tDetail;
+
+    % Actual scalar minimized by the GA acquisition function.
+    info.explorationBonus = explorationBonus;
+    info.acquisitionValuePred = acquisitionValuePred;
+
+    % Backwards-compatible aliases for existing main scripts.
     info.targetCost = tCost;
     info.targetScore = tScore;
     info.penaltyScore = pScore;

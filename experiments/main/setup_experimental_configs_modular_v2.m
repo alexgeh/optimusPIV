@@ -15,7 +15,7 @@ recIdx = 1;
 
 
 %% Configure experiment and write config file
-root_dir = "C:\PIV_SANDBOX\20260508_ATG_highFreq_actLearn_12\";
+root_dir = "C:\PIV_SANDBOX\20260511_ATG_highFreq_actLearn_13\";
 davis_exe = "C:\DaVis\win64\DaVis.exe";
 camera_exe = "C:\Users\agehrke\Downloads\MATLAB\2025_optimusPIV\cameraControl\PhotronCameraCtrl\SDKConfirmTool\Debug\SDKConfirmTool.exe"; %#ok<NASGU>
 
@@ -134,7 +134,7 @@ AL_settings.explore.globalUncertainty.seed = 1;
 % Tolerances are in physical output units. Relative tolerances work for
 % nonzero targets, but zero targets need an explicit absolute tolerance.
 AL_settings.targets = struct();
-AL_settings.targets.TI_mean     = 0.20;
+AL_settings.targets.TI_mean     = 0.10;
 AL_settings.targets.dTIdy_slope = 0;
 AL_settings.targets.dUdy_slope  = 0.00;
 
@@ -145,7 +145,7 @@ AL_settings.target.gateSharpness    = 10;   % penalty terms activate near target
 AL_settings.target.relTol           = 0.05; % fallback relative tolerance for nonzero targets
 
 AL_settings.target.tol = struct();
-AL_settings.target.tol.TI_mean     = 0.05 * abs(AL_settings.targets.TI_mean);
+AL_settings.target.tol.TI_mean     = 0.01;
 AL_settings.target.tol.dTIdy_slope = 0.03;
 AL_settings.target.tol.dUdy_slope  = 0.30;  % absolute tolerance for zero target; tune for your scaling
 

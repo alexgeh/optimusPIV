@@ -9,6 +9,8 @@ function actLearn_plotStatus(X_run, Y_run, history, input_defs, output_defs, AL_
 %     not meaningful and can obscure the exploration trends.
 %   - Output metrics are plotted in normalised form in subplot 2 so that
 %     large-magnitude quantities such as dU/dy do not dominate the axis.
+%   - In target mode, subplot 3 only plots stored history diagnostics. It does
+%     not recompute measured target scores or costs.
 
 if isempty(Y_run)
     return
@@ -123,49 +125,51 @@ if ~isempty(hIdx)
         end
 
         title('Exploration convergence');
+        xlabel('Iteration');
         ylabel('Normalised uncertainty');
+        legend('Location','best');
+        grid on;
 
     else
-        targetCostPred   = getHistoryField(history, 'targetCostPred', hIdx);
-        targetScore      = getHistoryField(history, 'targetScore', hIdx);
-        penaltyScore     = getHistoryField(history, 'penaltyScore', hIdx);
-        targetViolation  = getHistoryField(history, 'targetViolation', hIdx);
-        measuredScore    = getHistoryField(history, 'targetCostMeasured', hIdx);
+        % Stored predicted diagnostics from actLearn_getNextPt_GA.m.
+        targetScorePred = getHistoryFieldAny(history, {'targetScorePred', 'targetScore'}, hIdx);
+        targetCostPred  = getHistoryFieldAny(history, {'targetCostPred', 'targetCost'}, hIdx);
 
+        % Stored measured diagnostics computed after the experiment.
+        % Do not substitute targetCostMeasured for targetScoreMeasured.
+        targetScoreMeasured = getHistoryField(history, 'targetScoreMeasured', hIdx);
+        targetCostMeasured  = getHistoryField(history, 'targetCostMeasured', hIdx);
+
+        yyaxis left;
+        if any(isfinite(targetScorePred))
+            plot(history.iter(hIdx), targetScorePred, '-o', ...
+                'DisplayName', 'predicted target score');
+        end
+
+        if any(isfinite(targetScoreMeasured))
+            plot(history.iter(hIdx), targetScoreMeasured, '--o', ...
+                'DisplayName', 'measured target score');
+        end
+        ylabel('Target score');
+
+        yyaxis right;
         if any(isfinite(targetCostPred))
             plot(history.iter(hIdx), targetCostPred, '-s', ...
                 'DisplayName', 'predicted total cost');
         end
 
-        if any(isfinite(targetScore))
-            plot(history.iter(hIdx), targetScore, '-o', ...
-                'DisplayName', 'predicted target score');
+        if any(isfinite(targetCostMeasured))
+            plot(history.iter(hIdx), targetCostMeasured, '--s', ...
+                'DisplayName', 'measured total cost');
         end
-
-        if any(isfinite(targetViolation))
-            plot(history.iter(hIdx), targetViolation, '-x', ...
-                'DisplayName', 'target violation');
-        end
-
-        if any(isfinite(penaltyScore))
-            plot(history.iter(hIdx), penaltyScore, '-^', ...
-                'DisplayName', 'predicted CV/aniso penalty');
-        end
-
-        if any(isfinite(measuredScore))
-            plot(history.iter(hIdx), measuredScore, '-d', ...
-                'DisplayName', 'measured target score');
-        end
+        ylabel('Total cost');
 
         title('Targeted optimisation progress');
-        ylabel('Dimensionless cost / score');
+        xlabel('Iteration');
+        legend('Location','best');
+        grid on;
     end
 end
-
-xlabel('Iteration');
-legend('Location','best');
-grid on;
-
 
 %% 4) Sampling map in first two active dimensions
 subplot(2,2,4);
@@ -218,14 +222,15 @@ for k = 1:size(Y,2)
 end
 end
 
-function values = getFieldOrNaN(S, fieldName)
+function values = getHistoryFieldAny(history, fieldNames, idx)
 
-    n = numel(S);
-    values = NaN(n,1);
+    values = NaN(numel(idx),1);
 
-    for i = 1:n
-        if isfield(S(i), fieldName) && ~isempty(S(i).(fieldName))
-            values(i) = S(i).(fieldName);
+    for k = 1:numel(fieldNames)
+        candidate = getHistoryField(history, fieldNames{k}, idx);
+        if any(isfinite(candidate))
+            values = candidate;
+            return
         end
     end
 end
@@ -244,6 +249,7 @@ function values = getHistoryField(history, fieldName, idx)
         return
     end
 
+    raw = raw(:);
     valid = idx <= numel(raw);
     values(valid) = raw(idx(valid));
 end
