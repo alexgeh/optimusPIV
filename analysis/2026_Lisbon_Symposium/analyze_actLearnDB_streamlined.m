@@ -1,12 +1,19 @@
 %% Evaluate quality of parameter space exploration - streamlined/shared GP version
-clear
+clear; close all; clc;
 
+% load("R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\20260426_optDB.mat")
 load("R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\fullOptimizations\20260504_ATG_highFreq_actLearn_7\actLearnDB.mat")
 
+csvDir = "R:\ENG_Breuer_Shared\agehrke\DATA\2025_optimusPIV\2026_LisbonSymposium\";
+
+% optDB = optDB(219:end);
 % optDB = optDB(51:end);
 
+% inputNames  = {'actuation.alpha', 'actuation.relBeta'};
+% inputNames  = {'actuation.ampl', 'actuation.offset'};
 inputNames  = {'actuation.alpha', 'actuation.relBeta', ...
     'actuation.ampgrad', 'actuation.offsetgrad'};
+% outputNames = {'metrics.TI_mean'};
 outputNames = {'metrics.TI_mean', 'metrics.CV_U', 'metrics.CV_TI', ...
     'metrics.aniso_mean', 'metrics.dUdy_slope', 'metrics.dTIdy_slope'};
 
@@ -102,8 +109,8 @@ disp(uncDiag.maxAcquisitionContributionTable);
 
 gpHist = diagnoseGPHistory_local(Xn, Y, outputNames, ...
     'KernelFunction', gpStats.kernelFunction, ...
-    'StartAt', 8, ...
-    'Step', 2, ...
+    'StartAt', 1, ...
+    'Step', 1, ...
     'NCandidates', 10000, ...
     'Seed', 1, ...
     'UseFinalOutputScale', true);
@@ -115,6 +122,87 @@ plotGPSlices2D_local(models, X, Y, inputNames, outputNames, inputRanges, ...
 
 plotGPSlices2D_local(models, X, Y, inputNames, outputNames, inputRanges, ...
     'actuation.ampgrad', 'actuation.offsetgrad', 'median');
+
+
+%%
+% 1. Extract data
+x = Y(:, 1); 
+y = Y(:, 5);
+z = Y(:, 6);
+
+% 2. Define grid
+gridSteps = 200; % Higher resolution often looks better for contours
+xq = linspace(min(x), max(x), gridSteps);
+yq = linspace(min(y), max(y), gridSteps);
+[X, Y_grid] = meshgrid(xq, yq);
+
+% 3. Interpolate and Mask
+Z = griddata(x, y, z, X, Y_grid, 'v4');
+
+% Apply Convex Hull Mask (Prevents extrapolation)
+k = convhull(x, y);
+isInside = inpolygon(X, Y_grid, x(k), y(k));
+Z(~isInside) = NaN;
+
+% 4. Create the Filled Contour Plot
+figure;
+% Adjust '20' to increase/decrease the number of contour levels
+[C, h] = contourf(X, Y_grid, Z, 20, 'LineStyle', 'none'); 
+
+hold on;
+
+% 5. Overlay the measured points
+% Using scatter (2D) instead of scatter3
+scatter(x, y, 15, 'ko', 'MarkerFaceColor', 'k', 'MarkerFaceAlpha', 0.5);
+
+% Formatting
+shading interp;      % Optional: removes the discrete "steps" between colors
+cb = colorbar;
+xlabel('TI');
+ylabel('dU/dy_{slope}');
+cb.Label.String = 'dTI/dy_{slope}';
+title('Possible Solution Space');
+grid on;
+axis tight;
+
+
+%% Export exploration history to CSV for PGFPlots
+% This snippet exports data used in the 'Global GP uncertainty' and 
+% 'Mean GP uncertainty by output' plots.
+
+% 1. Determine the number of iterations recorded
+N_iters = numel(gpHist.nTrain);
+
+% 2. Assemble the data matrix
+% Column 1: Iteration counter (1 to N)
+% Column 2: Actual number of training points (useful for the x-axis)
+% Columns 3-7: Global uncertainty metrics
+% Columns 8+: Mean uncertainty per output
+exportMatrix = [ ...
+    (1:N_iters)', ...                    
+    gpHist.nTrain, ...                   
+    gpHist.globalMeanUncertainty, ...
+    gpHist.globalMedianUncertainty, ...
+    gpHist.globalP90Uncertainty, ...
+    gpHist.globalP99Uncertainty, ...
+    gpHist.globalMaxUncertainty, ...
+    gpHist.meanUncertaintyByOutput ...   
+];
+
+% 3. Generate descriptive headers
+% Use the makeSafeNames helper to ensure column names are compatible with CSV/LaTeX
+headers = {'Iteration', 'nPoints', 'GlobalMean', 'GlobalMedian', 'GlobalP90', 'GlobalP99', 'GlobalMax'};
+safeOutputNames = makeSafeNames(outputNames);
+% Append suffix to output names for clarity
+meanOutputHeaders = cellfun(@(s) [s, '_meanUnc'], safeOutputNames, 'UniformOutput', false);
+allHeaders = [headers, meanOutputHeaders];
+
+% 4. Create table and write to file
+filename = fullfile(csvDir, 'explorationHistory.dat');
+T_pgf = array2table(exportMatrix, 'VariableNames', allHeaders);
+writetable(T_pgf, filename, 'Delimiter', ' ');
+
+fprintf('Successfully exported exploration history to "exploration_history.csv" for PGFPlots.\n');
 
 
 %% Local analysis-only helpers ------------------------------------------------
